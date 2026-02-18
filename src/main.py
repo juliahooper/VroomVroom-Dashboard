@@ -12,7 +12,7 @@ from pathlib import Path
 
 from config import AppConfig, ConfigError, load_config
 from metrics_reader import MetricsError, read_metrics
-from models import Snapshot, create_snapshot
+from models import Snapshot, create_snapshot, snapshot_from_json, snapshot_to_json
 
 
 def setup_logging(config: AppConfig) -> None:
@@ -109,24 +109,43 @@ def main() -> int:
         for metric in snapshot.metrics:
             logger.debug(f"Metric: {metric.name} = {metric.value}{metric.unit} (Status: {metric.status})")
         
-        # Create JSON from snapshot (for future API transmission)
-        logger.info("Creating JSON from snapshot")
-        snapshot_dict = {
-            "device_id": snapshot.device_id,
-            "timestamp_utc": snapshot.timestamp_utc.isoformat(),
-            "metrics": [
-                {
-                    "name": m.name,
-                    "value": m.value,
-                    "unit": m.unit,
-                    "status": m.status
-                }
-                for m in snapshot.metrics
-            ]
-        }
-        snapshot_json = json.dumps(snapshot_dict, indent=2)
-        logger.debug(f"JSON created: {len(snapshot_json)} characters")
-        logger.info("JSON creation completed")
+        # Serialize snapshot to JSON
+        logger.info("Serializing snapshot to JSON")
+        snapshot_json = snapshot_to_json(snapshot)
+        logger.info(f"JSON serialization completed - {len(snapshot_json)} characters")
+        
+        # Log the JSON payload
+        logger.info("JSON payload:")
+        logger.info(snapshot_json)
+        
+        # Deserialize to verify integrity
+        logger.info("Deserializing JSON to verify integrity")
+        try:
+            deserialized_snapshot = snapshot_from_json(snapshot_json)
+            
+            # Verify integrity by comparing key fields
+            if deserialized_snapshot.device_id != snapshot.device_id:
+                raise ValueError(f"Device ID mismatch: {deserialized_snapshot.device_id} != {snapshot.device_id}")
+            if deserialized_snapshot.timestamp_utc != snapshot.timestamp_utc:
+                raise ValueError(f"Timestamp mismatch: {deserialized_snapshot.timestamp_utc} != {snapshot.timestamp_utc}")
+            if len(deserialized_snapshot.metrics) != len(snapshot.metrics):
+                raise ValueError(f"Metrics count mismatch: {len(deserialized_snapshot.metrics)} != {len(snapshot.metrics)}")
+            
+            # Verify each metric
+            for i, (original, deserialized) in enumerate(zip(snapshot.metrics, deserialized_snapshot.metrics)):
+                if original.name != deserialized.name:
+                    raise ValueError(f"Metric {i} name mismatch: {deserialized.name} != {original.name}")
+                if abs(original.value - deserialized.value) > 0.01:  # Allow small floating point differences
+                    raise ValueError(f"Metric {i} value mismatch: {deserialized.value} != {original.value}")
+                if original.unit != deserialized.unit:
+                    raise ValueError(f"Metric {i} unit mismatch: {deserialized.unit} != {original.unit}")
+                if original.status != deserialized.status:
+                    raise ValueError(f"Metric {i} status mismatch: {deserialized.status} != {original.status}")
+            
+            logger.info("JSON integrity verification passed - deserialized snapshot matches original")
+        except ValueError as e:
+            logger.error(f"JSON integrity verification failed: {e}", exc_info=True)
+            return 5
     except MetricsError as e:
         logger.error(f"Failed to read system metrics: {e}", exc_info=True)
         return 3
