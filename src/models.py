@@ -126,8 +126,9 @@ def snapshot_from_json(json_str: str) -> Snapshot:
     """
     try:
         data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON string: {e}") from e
+    except json.JSONDecodeError:
+        # Let JSONDecodeError propagate so callers can distinguish parsing errors from validation errors
+        raise
     
     # Validate required fields
     if not isinstance(data, dict):

@@ -62,7 +62,17 @@ def setup_logging(config: AppConfig) -> None:
 
 
 def main() -> int:
-    """Main function."""
+    """
+    Main function.
+    
+    Returns:
+        0: Success
+        1: Unexpected error
+        2: Configuration failure
+        3: Metric read failure
+        4: JSON serialization/deserialization error
+        5: JSON integrity verification failure
+    """
     logger = logging.getLogger(__name__)
     
     # Log startup
@@ -111,8 +121,12 @@ def main() -> int:
         
         # Serialize snapshot to JSON
         logger.info("Serializing snapshot to JSON")
-        snapshot_json = snapshot_to_json(snapshot)
-        logger.info(f"JSON serialization completed - {len(snapshot_json)} characters")
+        try:
+            snapshot_json = snapshot_to_json(snapshot)
+            logger.info(f"JSON serialization completed - {len(snapshot_json)} characters")
+        except (json.JSONEncodeError, TypeError) as e:
+            logger.error(f"Failed to serialize snapshot to JSON: {e}", exc_info=True)
+            return 4
         
         # Log the JSON payload
         logger.info("JSON payload:")
@@ -122,8 +136,16 @@ def main() -> int:
         logger.info("Deserializing JSON to verify integrity")
         try:
             deserialized_snapshot = snapshot_from_json(snapshot_json)
-            
-            # Verify integrity by comparing key fields
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to deserialize JSON (malformed JSON): {e}", exc_info=True)
+            return 4
+        except ValueError as e:
+            # This catches validation errors from snapshot_from_json
+            logger.error(f"JSON integrity verification failed (validation error): {e}", exc_info=True)
+            return 5
+        
+        # Verify integrity by comparing key fields
+        try:
             if deserialized_snapshot.device_id != snapshot.device_id:
                 raise ValueError(f"Device ID mismatch: {deserialized_snapshot.device_id} != {snapshot.device_id}")
             if deserialized_snapshot.timestamp_utc != snapshot.timestamp_utc:
@@ -144,16 +166,13 @@ def main() -> int:
             
             logger.info("JSON integrity verification passed - deserialized snapshot matches original")
         except ValueError as e:
-            logger.error(f"JSON integrity verification failed: {e}", exc_info=True)
+            logger.error(f"JSON integrity verification failed (data mismatch): {e}", exc_info=True)
             return 5
     except MetricsError as e:
         logger.error(f"Failed to read system metrics: {e}", exc_info=True)
         return 3
-    except (json.JSONEncodeError, TypeError) as e:
-        logger.error(f"Failed to create JSON from snapshot: {e}", exc_info=True)
-        return 4
     except Exception as e:
-        logger.error(f"Unexpected error reading metrics or creating snapshot: {e}", exc_info=True)
+        logger.error(f"Unexpected error: {e}", exc_info=True)
         return 1
     
     # Log shutdown
