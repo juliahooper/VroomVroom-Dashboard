@@ -12,7 +12,13 @@ from pathlib import Path
 
 from config import AppConfig, ConfigError, load_config
 from metrics_reader import MetricsError, read_metrics
-from models import Snapshot, create_snapshot, snapshot_from_json, snapshot_to_json
+from models import (
+    Snapshot,
+    create_snapshot,
+    get_status_summary,
+    snapshot_from_json,
+    snapshot_to_json,
+)
 
 
 def setup_logging(config: AppConfig) -> None:
@@ -92,15 +98,15 @@ def main() -> int:
     # Setup logging with config values
     setup_logging(config)
     logger = logging.getLogger(__name__)
-    logger.info(f"Logging configured - Level: {config.log_level}, File: {config.log_file_path}")
-    
-    # Log application info
-    logger.info(f"Application: {config.app_name}")
-    logger.info(f"Device ID: {config.device_id}")
-    logger.info(f"Read interval: {config.read_interval_seconds} seconds")
-    
-    # Read metrics
     try:
+        logger.info(f"Logging configured - Level: {config.log_level}, File: {config.log_file_path}")
+        
+        # Log application info
+        logger.info(f"Application: {config.app_name}")
+        logger.info(f"Device ID: {config.device_id}")
+        logger.info(f"Read interval: {config.read_interval_seconds} seconds")
+        
+        # Read metrics
         metrics = read_metrics()
         logger.info("Metrics read successfully")
         
@@ -114,7 +120,18 @@ def main() -> int:
         )
         logger.info(f"Snapshot created - Device: {snapshot.device_id}, Timestamp: {snapshot.timestamp_utc.isoformat()}")
         logger.info(f"Snapshot contains {len(snapshot.metrics)} metrics")
-        
+
+        # Precomputed status summary for later stretch-goal alerting
+        status_summary = get_status_summary(snapshot)
+        if status_summary.has_danger:
+            logger.warning(
+                f"Danger: {[m.name for m in status_summary.danger_metrics]}"
+            )
+        if status_summary.has_warning:
+            logger.info(
+                f"Warning: {[m.name for m in status_summary.warning_metrics]}"
+            )
+
         # Log metric details
         for metric in snapshot.metrics:
             logger.debug(f"Metric: {metric.name} = {metric.value}{metric.unit} (Status: {metric.status})")
@@ -174,10 +191,12 @@ def main() -> int:
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         return 1
-    
-    # Log shutdown
-    logger.info("Application shutting down")
-    return 0
+    else:
+        # Log shutdown
+        logger.info("Application shutting down")
+        return 0
+    finally:
+        logging.shutdown()  # Flush and close all handlers for clean exit
 
 
 if __name__ == '__main__':

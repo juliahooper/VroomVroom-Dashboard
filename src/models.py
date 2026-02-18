@@ -12,6 +12,37 @@ from typing import Any, Literal
 # Status type for metrics
 MetricStatus = Literal["normal", "warning", "danger"]
 
+# Default fraction of danger threshold at which warning is raised (e.g. 0.8 = 80% of threshold)
+DEFAULT_WARNING_FRACTION = 0.8
+
+
+def compute_metric_status(
+    value: float,
+    danger_threshold: int,
+    warning_fraction: float = DEFAULT_WARNING_FRACTION,
+) -> MetricStatus:
+    """
+    Precompute danger status from a metric value and config thresholds.
+
+    Supports later stretch goal alerting by centralizing status logic.
+    - danger: value >= danger_threshold
+    - warning: value >= danger_threshold * warning_fraction (but below danger)
+    - normal: otherwise
+
+    Args:
+        value: Current metric value (e.g. percentage).
+        danger_threshold: Config threshold above which status is "danger".
+        warning_fraction: Fraction of danger_threshold for "warning" band (default 0.8).
+
+    Returns:
+        "normal", "warning", or "danger".
+    """
+    if value >= danger_threshold:
+        return "danger"
+    if value >= danger_threshold * warning_fraction:
+        return "warning"
+    return "normal"
+
 
 @dataclass(frozen=True)
 class Metric:
@@ -58,16 +89,11 @@ def create_snapshot(
     for metric_key, metric_value in metrics_dict.items():
         if metric_key in metric_configs:
             config = metric_configs[metric_key]
-            threshold = thresholds.get(metric_key, 100)
-            
-            # Determine status based on threshold
-            if metric_value >= threshold:
-                status: MetricStatus = "danger"
-            elif metric_value >= threshold * 0.8:  # Warning at 80% of threshold
-                status = "warning"
-            else:
-                status = "normal"
-            
+            danger_threshold = thresholds.get(metric_key, 100)
+            status = compute_metric_status(
+                value=metric_value,
+                danger_threshold=danger_threshold,
+            )
             metric = Metric(
                 name=config['name'],
                 value=metric_value,
@@ -80,6 +106,52 @@ def create_snapshot(
         device_id=device_id,
         timestamp_utc=datetime.now(timezone.utc),
         metrics=metric_list
+    )
+
+
+@dataclass(frozen=True)
+class StatusSummary:
+    """
+    Precomputed summary of metric statuses for a snapshot.
+    Use for stretch-goal alerting without re-applying thresholds.
+    """
+    danger_metrics: tuple[Metric, ...]
+    warning_metrics: tuple[Metric, ...]
+    normal_metrics: tuple[Metric, ...]
+    has_danger: bool
+    has_warning: bool
+
+
+def get_status_summary(snapshot: Snapshot) -> StatusSummary:
+    """
+    Build a status summary from a snapshot's precomputed metric statuses.
+
+    Enables alerting to check has_danger/has_warning and list affected metrics
+    without re-reading config or recomputing thresholds.
+
+    Args:
+        snapshot: Snapshot with metrics that already have status set.
+
+    Returns:
+        StatusSummary with danger_metrics, warning_metrics, normal_metrics,
+        has_danger, and has_warning.
+    """
+    danger: list[Metric] = []
+    warning: list[Metric] = []
+    normal: list[Metric] = []
+    for m in snapshot.metrics:
+        if m.status == "danger":
+            danger.append(m)
+        elif m.status == "warning":
+            warning.append(m)
+        else:
+            normal.append(m)
+    return StatusSummary(
+        danger_metrics=tuple(danger),
+        warning_metrics=tuple(warning),
+        normal_metrics=tuple(normal),
+        has_danger=len(danger) > 0,
+        has_warning=len(warning) > 0,
     )
 
 
