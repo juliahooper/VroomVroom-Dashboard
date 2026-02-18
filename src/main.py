@@ -7,10 +7,12 @@ import json
 import logging
 import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from config import AppConfig, ConfigError, load_config
 from metrics_reader import MetricsError, read_metrics
+from models import Snapshot, create_snapshot
 
 
 def setup_logging(config: AppConfig) -> None:
@@ -92,19 +94,47 @@ def main() -> int:
         metrics = read_metrics()
         logger.info("Metrics read successfully")
         
-        # Create JSON from metrics
-        logger.info("Creating JSON from metrics")
-        metrics_json = json.dumps(metrics, indent=2)
-        logger.debug(f"JSON created: {len(metrics_json)} characters")
+        # Create snapshot with data models
+        logger.info("Creating snapshot from metrics")
+        thresholds_dict = asdict(config.danger_thresholds)
+        snapshot = create_snapshot(
+            device_id=config.device_id,
+            metrics_dict=metrics,
+            thresholds=thresholds_dict
+        )
+        logger.info(f"Snapshot created - Device: {snapshot.device_id}, Timestamp: {snapshot.timestamp_utc.isoformat()}")
+        logger.info(f"Snapshot contains {len(snapshot.metrics)} metrics")
+        
+        # Log metric details
+        for metric in snapshot.metrics:
+            logger.debug(f"Metric: {metric.name} = {metric.value}{metric.unit} (Status: {metric.status})")
+        
+        # Create JSON from snapshot (for future API transmission)
+        logger.info("Creating JSON from snapshot")
+        snapshot_dict = {
+            "device_id": snapshot.device_id,
+            "timestamp_utc": snapshot.timestamp_utc.isoformat(),
+            "metrics": [
+                {
+                    "name": m.name,
+                    "value": m.value,
+                    "unit": m.unit,
+                    "status": m.status
+                }
+                for m in snapshot.metrics
+            ]
+        }
+        snapshot_json = json.dumps(snapshot_dict, indent=2)
+        logger.debug(f"JSON created: {len(snapshot_json)} characters")
         logger.info("JSON creation completed")
     except MetricsError as e:
         logger.error(f"Failed to read system metrics: {e}", exc_info=True)
         return 3
     except (json.JSONEncodeError, TypeError) as e:
-        logger.error(f"Failed to create JSON from metrics: {e}", exc_info=True)
+        logger.error(f"Failed to create JSON from snapshot: {e}", exc_info=True)
         return 4
     except Exception as e:
-        logger.error(f"Unexpected error reading metrics or creating JSON: {e}", exc_info=True)
+        logger.error(f"Unexpected error reading metrics or creating snapshot: {e}", exc_info=True)
         return 1
     
     # Log shutdown
