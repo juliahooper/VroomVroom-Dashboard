@@ -10,9 +10,9 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from config import AppConfig, ConfigError, load_config
-from metrics_reader import MetricsError, read_metrics
-from models import (
+from .config import AppConfig, ConfigError, load_config
+from .metrics_reader import MetricsError, read_metrics
+from .models import (
     Snapshot,
     create_snapshot,
     get_status_summary,
