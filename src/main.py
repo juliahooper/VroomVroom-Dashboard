@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from config import AppConfig, ConfigError, load_config
-from metrics_reader import read_metrics
+from metrics_reader import MetricsError, read_metrics
 
 
 def setup_logging(config: AppConfig) -> None:
@@ -97,8 +97,14 @@ def main() -> int:
         metrics_json = json.dumps(metrics, indent=2)
         logger.debug(f"JSON created: {len(metrics_json)} characters")
         logger.info("JSON creation completed")
+    except MetricsError as e:
+        logger.error(f"Failed to read system metrics: {e}", exc_info=True)
+        return 3
+    except (json.JSONEncodeError, TypeError) as e:
+        logger.error(f"Failed to create JSON from metrics: {e}", exc_info=True)
+        return 4
     except Exception as e:
-        logger.error(f"Error reading metrics or creating JSON: {e}", exc_info=True)
+        logger.error(f"Unexpected error reading metrics or creating JSON: {e}", exc_info=True)
         return 1
     
     # Log shutdown
