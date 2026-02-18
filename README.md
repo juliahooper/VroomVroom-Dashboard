@@ -2,6 +2,15 @@
 
 PoC monitor: reads OS metrics, builds a structured snapshot, and serialises to JSON.
 
+## Setup
+
+1. **Install Python** (if needed) from [python.org](https://www.python.org/downloads/) or with `winget install Python.Python.3.12`. Do not use `pip install python` — pip is included with Python.
+2. **Install dependencies** (from the project root):
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+   If `pip` is not found, use `python -m pip` so the correct Python’s pip is used.
+
 ## Run
 
 From the project root:
