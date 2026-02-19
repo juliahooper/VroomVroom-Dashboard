@@ -5,6 +5,7 @@
   "log_level": "INFO",
   "log_file_path": "logs/app.log",
   "server_port": 54545,
+  "server_host": "127.0.0.1",
   "danger_thresholds": {
     "cpu_percent": 80,
     "ram_percent": 85,

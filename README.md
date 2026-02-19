@@ -31,6 +31,14 @@ python -m src.tcp_server
 
 Listens on the port in config (`server_port`, default 54545). Accepts connections, reads and logs data, then closes each client socket. Stop with Ctrl+C.
 
+### TCP client (Step 2 – metric transmission)
+
+```bash
+python -m src.tcp_client
+```
+
+Connects to `server_host` and `server_port` from config (default 127.0.0.1:54545). Logs local and remote socket info, sends one JSON metric payload (device_id, timestamp, metrics with status), then closes the socket. Start the server first in another terminal.
+
 ## Project layout
 
 ```
@@ -41,6 +49,7 @@ VroomVroom-Dashboard/
 │   ├── __init__.py
 │   ├── main.py           # Entry point, logging setup, exit codes
 │   ├── tcp_server.py     # TCP server (listen, accept, read, log)
+│   ├── tcp_client.py     # TCP client (connect, send JSON metrics)
 │   ├── config.py         # Load and validate config
 │   ├── metrics_reader.py # Read OS metrics (CPU, RAM, disk)
 │   └── models.py         # Data models, JSON serialisation, status

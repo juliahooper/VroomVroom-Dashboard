@@ -29,6 +29,8 @@ class DangerThresholds:
 
 # Default TCP server port (used when server_port is omitted from config)
 DEFAULT_SERVER_PORT = 54545
+# Default TCP server host for client connections
+DEFAULT_SERVER_HOST = "127.0.0.1"
 
 # Immutable dataclass representing the full validated application configuration
 @dataclass(frozen=True)
@@ -40,6 +42,7 @@ class AppConfig:
     log_file_path: str
     danger_thresholds: DangerThresholds
     server_port: int = DEFAULT_SERVER_PORT
+    server_host: str = DEFAULT_SERVER_HOST
 
 
 # Names of required keys at the top level of the config JSON
@@ -115,6 +118,10 @@ def load_config(config_path: str | Path) -> AppConfig:
     server_port = data.get("server_port", DEFAULT_SERVER_PORT)
     if type(server_port) is not int or not (1 <= server_port <= 65535):
         raise ConfigError("Key 'server_port' must be an integer between 1 and 65535.")
+    # Optional: TCP server host for client (default 127.0.0.1)
+    server_host = data.get("server_host", DEFAULT_SERVER_HOST)
+    if not isinstance(server_host, str) or not server_host.strip():
+        raise ConfigError("Key 'server_host' must be a non-empty string.")
 
     cfg = AppConfig(
         app_name=_require_str(data, "app_name", context="config root"),
@@ -128,6 +135,7 @@ def load_config(config_path: str | Path) -> AppConfig:
             disk_percent=_require_int(danger, "disk_percent", context="danger_thresholds"),
         ),
         server_port=server_port,
+        server_host=server_host.strip(),
     )
 
     if cfg.read_interval_seconds <= 0:
