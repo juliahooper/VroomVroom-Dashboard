@@ -4,6 +4,7 @@
   "read_interval_seconds": 5,
   "log_level": "INFO",
   "log_file_path": "logs/app.log",
+  "server_port": 54545,
   "danger_thresholds": {
     "cpu_percent": 80,
     "ram_percent": 85,

@@ -19,7 +19,17 @@ From the project root:
 python -m src.main
 ```
 
+(Not `python main.py` — the entry point is in `src/`.)
+
 Run from the project root so `config/config.json` and `logs/` resolve correctly.
+
+### TCP server (Step 1 – IPC)
+
+```bash
+python -m src.tcp_server
+```
+
+Listens on the port in config (`server_port`, default 54545). Accepts connections, reads and logs data, then closes each client socket. Stop with Ctrl+C.
 
 ## Project layout
 
@@ -30,6 +40,7 @@ VroomVroom-Dashboard/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py           # Entry point, logging setup, exit codes
+│   ├── tcp_server.py     # TCP server (listen, accept, read, log)
 │   ├── config.py         # Load and validate config
 │   ├── metrics_reader.py # Read OS metrics (CPU, RAM, disk)
 │   └── models.py         # Data models, JSON serialisation, status

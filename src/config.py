@@ -27,6 +27,9 @@ class DangerThresholds:
     disk_percent: int
 
 
+# Default TCP server port (used when server_port is omitted from config)
+DEFAULT_SERVER_PORT = 54545
+
 # Immutable dataclass representing the full validated application configuration
 @dataclass(frozen=True)
 class AppConfig:
@@ -36,6 +39,7 @@ class AppConfig:
     log_level: str
     log_file_path: str
     danger_thresholds: DangerThresholds
+    server_port: int = DEFAULT_SERVER_PORT
 
 
 # Names of required keys at the top level of the config JSON
@@ -107,6 +111,11 @@ def load_config(config_path: str | Path) -> AppConfig:
     for key in _REQUIRED_DANGER_KEYS:
         _require_key(danger, key, context="danger_thresholds")
 
+    # Optional: TCP server port (default 54545)
+    server_port = data.get("server_port", DEFAULT_SERVER_PORT)
+    if type(server_port) is not int or not (1 <= server_port <= 65535):
+        raise ConfigError("Key 'server_port' must be an integer between 1 and 65535.")
+
     cfg = AppConfig(
         app_name=_require_str(data, "app_name", context="config root"),
         device_id=_require_str(data, "device_id", context="config root"),
@@ -118,6 +127,7 @@ def load_config(config_path: str | Path) -> AppConfig:
             ram_percent=_require_int(danger, "ram_percent", context="danger_thresholds"),
             disk_percent=_require_int(danger, "disk_percent", context="danger_thresholds"),
         ),
+        server_port=server_port,
     )
 
     if cfg.read_interval_seconds <= 0:
