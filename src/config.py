@@ -1,5 +1,9 @@
 """
 Configuration management module.
+
+What this does: reads the app settings from a JSON file (e.g. config/config.json),
+checks that all required fields are present and valid, and returns an AppConfig object
+that the rest of the app uses. If something is missing or wrong we raise ConfigError.
 """
 
 # Enables postponed evaluation of type annotations (PEP 563)
@@ -15,11 +19,12 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-# Custom exception class for configuration-related errors (missing keys, invalid values, etc.)
+# Raised when the config file is missing a key, has wrong types, or invalid values
 class ConfigError(Exception):
     pass
 
 
+# Percentages above which we consider CPU, RAM, or disk "in danger"
 @dataclass(frozen=True)
 class DangerThresholds:
     cpu_percent: int
@@ -27,7 +32,12 @@ class DangerThresholds:
     disk_percent: int
 
 
-# Immutable dataclass representing the full validated application configuration
+# Defaults for optional TCP settings (used when not in config JSON)
+DEFAULT_SERVER_PORT = 54545
+DEFAULT_SERVER_HOST = "127.0.0.1"
+
+
+# Immutable dataclass representing All settings the app needs. Loaded once from JSON and passed around.
 @dataclass(frozen=True)
 class AppConfig:
     app_name: str
@@ -36,6 +46,8 @@ class AppConfig:
     log_level: str
     log_file_path: str
     danger_thresholds: DangerThresholds
+    server_port: int = DEFAULT_SERVER_PORT
+    server_host: str = DEFAULT_SERVER_HOST
 
 
 # Names of required keys at the top level of the config JSON
@@ -48,27 +60,27 @@ _REQUIRED_TOP_LEVEL_KEYS = (
     "danger_thresholds",
 )
 
-# Names of required keys inside the nested danger_thresholds object
+# These keys must exist inside the danger_thresholds object in the JSON
 _REQUIRED_DANGER_KEYS = ("cpu_percent", "ram_percent", "disk_percent")
 
  # Helper to ensure a required key exists in a mapping, otherwise raise a ConfigError
 def _require_key(obj: Mapping[str, Any], key: str, *, context: str) -> Any:
+    """If the key is missing we raise ConfigError; otherwise return its value."""
     if key not in obj:
         raise ConfigError(f"Missing required key '{key}' in {context}.")
     return obj[key]
 
 
-# Helper to ensure a required key exists and its value is an integer, otherwise raise ConfigError
 def _require_int(obj: Mapping[str, Any], key: str, *, context: str) -> int:
+    """Same as _require_key but we also check the value is an integer (not a bool)."""
     value = _require_key(obj, key, context=context)
-    # Use type() instead of isinstance() to exclude bool (which is a subclass of int)
     if type(value) is not int:
         raise ConfigError(f"Key '{key}' in {context} must be an integer.")
     return value
 
-
 # Helper to ensure a required key exists and its value is a non-empty string, otherwise raise ConfigError
 def _require_str(obj: Mapping[str, Any], key: str, *, context: str) -> str:
+    """Same as _require_key but we also check the value is a non-empty string."""
     value = _require_key(obj, key, context=context)
     if not isinstance(value, str):
         raise ConfigError(f"Key '{key}' in {context} must be a string.")
@@ -79,9 +91,9 @@ def _require_str(obj: Mapping[str, Any], key: str, *, context: str) -> str:
 
 def load_config(config_path: str | Path) -> AppConfig:
     """
-    Load configuration from JSON file and validate required keys.
-
-    Raises ConfigError for missing/invalid config and OSError for IO issues.
+    Read the config file from disk, parse the JSON, check all required keys exist
+    and have the right types, then build and return an AppConfig. Raises ConfigError
+    if anything is wrong; raises OSError if the file can't be read.
     """
     path = Path(config_path)
     try:
@@ -97,9 +109,11 @@ def load_config(config_path: str | Path) -> AppConfig:
     if not isinstance(data, dict):
         raise ConfigError(f"Config root must be a JSON object in '{path}'.")
 
+    # Check every required top-level key exists
     for key in _REQUIRED_TOP_LEVEL_KEYS:
         _require_key(data, key, context="config root")
 
+    # danger_thresholds must be an object with cpu_percent, ram_percent, disk_percent
     danger = _require_key(data, "danger_thresholds", context="config root")
     if not isinstance(danger, dict):
         raise ConfigError("Key 'danger_thresholds' must be an object in config root.")
@@ -107,6 +121,15 @@ def load_config(config_path: str | Path) -> AppConfig:
     for key in _REQUIRED_DANGER_KEYS:
         _require_key(danger, key, context="danger_thresholds")
 
+    # Optional: TCP server port and host for client (defaults if missing)
+    server_port = data.get("server_port", DEFAULT_SERVER_PORT)
+    if type(server_port) is not int or not (1 <= server_port <= 65535):
+        raise ConfigError("Key 'server_port' must be an integer between 1 and 65535.")
+    server_host = data.get("server_host", DEFAULT_SERVER_HOST)
+    if not isinstance(server_host, str) or not server_host.strip():
+        raise ConfigError("Key 'server_host' must be a non-empty string.")
+
+    # Build the immutable config object from validated values
     cfg = AppConfig(
         app_name=_require_str(data, "app_name", context="config root"),
         device_id=_require_str(data, "device_id", context="config root"),
@@ -118,8 +141,11 @@ def load_config(config_path: str | Path) -> AppConfig:
             ram_percent=_require_int(danger, "ram_percent", context="danger_thresholds"),
             disk_percent=_require_int(danger, "disk_percent", context="danger_thresholds"),
         ),
+        server_port=server_port,
+        server_host=server_host.strip(),
     )
 
+    # Extra check: read interval must be positive
     if cfg.read_interval_seconds <= 0:
         raise ConfigError("Key 'read_interval_seconds' must be > 0.")
 

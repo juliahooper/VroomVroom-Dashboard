@@ -1,5 +1,9 @@
 """
 Metrics reading and processing module.
+
+What this does: reads the current CPU usage, RAM usage, and disk usage from the
+operating system (using the psutil library) and returns them as a dictionary of
+percentages. If psutil isn't installed or a read fails we raise MetricsError.
 """
 from __future__ import annotations
 

@@ -1,5 +1,9 @@
 """
 Data models and schemas.
+
+What this does: defines the shape of our data (Metric, Snapshot), turns raw
+numbers from the metrics reader into snapshots with a status (normal/warning/danger),
+and converts snapshots to/from JSON for logging or sending over the network.
 """
 from __future__ import annotations
 
@@ -101,7 +105,8 @@ def create_snapshot(
                 status=status
             )
             metric_list.append(metric)
-    
+
+    # Snapshot is immutable: device id, current UTC time, and the list of metrics
     return Snapshot(
         device_id=device_id,
         timestamp_utc=datetime.now(timezone.utc),
