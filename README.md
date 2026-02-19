@@ -29,7 +29,7 @@ Run from the project root so `config/config.json` and `logs/` resolve correctly.
 python -m src.tcp_server
 ```
 
-Listens on the port in config (`server_port`, default 54545). Accepts connections, reads and logs data, then closes each client socket. Stop with Ctrl+C.
+Listens on the port in config (`server_port`, default 54545). Buffers incoming bytes and only processes complete protocol messages (4-byte length + payload); logs each JSON message. Stop with Ctrl+C.
 
 ### TCP client (Step 2 – metric transmission)
 
@@ -38,6 +38,10 @@ python -m src.tcp_client
 ```
 
 Connects to `server_host` and `server_port` from config (default 127.0.0.1:54545). Logs local and remote socket info, sends one JSON metric payload (device_id, timestamp, metrics with status), then closes the socket. Start the server first in another terminal.
+
+### Protocol (Step 3 – stream vs message)
+
+Messages use a **4-byte length header** (big-endian, payload length) **+ payload** (JSON UTF-8). The server buffers incoming bytes and only processes complete messages; the client sends each payload with `encode_message()` from `src.protocol`.
 
 ## Project layout
 
@@ -48,8 +52,9 @@ VroomVroom-Dashboard/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py           # Entry point, logging setup, exit codes
-│   ├── tcp_server.py     # TCP server (listen, accept, read, log)
-│   ├── tcp_client.py     # TCP client (connect, send JSON metrics)
+│   ├── tcp_server.py     # TCP server (buffer, process complete messages)
+│   ├── tcp_client.py     # TCP client (connect, send length-prefixed JSON)
+│   ├── protocol.py       # 4-byte header + payload (stream vs message)
 │   ├── config.py         # Load and validate config
 │   ├── metrics_reader.py # Read OS metrics (CPU, RAM, disk)
 │   └── models.py         # Data models, JSON serialisation, status

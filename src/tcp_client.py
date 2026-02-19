@@ -2,7 +2,7 @@
 TCP client – metric transmission.
 
 Connects to the server, logs local/remote socket info,
-sends serialised JSON metric payloads, and closes the socket properly.
+sends serialised JSON metric payloads using the length-prefixed protocol, and closes the socket properly.
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from dataclasses import asdict
 from .config import AppConfig
 from .metrics_reader import MetricsError, read_metrics
 from .models import create_snapshot, snapshot_to_json
+from .protocol import encode_message
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ ENCODING = "utf-8"
 def run_client(config: AppConfig) -> None:
     """
     Connect to the server, log socket information, send one JSON metric
-    payload (device_id, timestamp, metrics with status), then close.
+    payload (4-byte length header + JSON body), then close.
     Socket is closed safely even on exception.
     """
     host = config.server_host
@@ -38,7 +39,7 @@ def run_client(config: AppConfig) -> None:
             "Connected: local %s:%s, remote %s:%s",
             local[0], local[1], remote[0], remote[1],
         )
-        # Build and send serialised JSON metric payload
+        # Build payload: JSON metric snapshot
         metrics = read_metrics()
         thresholds = asdict(config.danger_thresholds)
         snapshot = create_snapshot(
@@ -46,10 +47,12 @@ def run_client(config: AppConfig) -> None:
             metrics_dict=metrics,
             thresholds=thresholds,
         )
-        payload = snapshot_to_json(snapshot)
-        data = payload.encode(ENCODING)
-        sock.sendall(data)
-        logger.info("Sent metric payload (%d bytes)", len(data))
+        payload_str = snapshot_to_json(snapshot)
+        payload_bytes = payload_str.encode(ENCODING)
+        # Protocol: 4-byte length header + payload
+        message = encode_message(payload_bytes)
+        sock.sendall(message)
+        logger.info("Sent metric payload (%d bytes)", len(payload_bytes))
     finally:
         sock.close()
         logger.info("Socket closed")

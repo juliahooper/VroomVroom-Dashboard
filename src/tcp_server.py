@@ -4,13 +4,17 @@ TCP server – low-level IPC foundation.
 Understanding:
 - Listening socket: one per server. bind(port), listen(), then accept() in a loop.
 - Connection socket: one per client. Returned by accept(). Used to recv()/send(); close when done.
+
+Protocol (Step 3): 4-byte length header + payload. Server buffers bytes and only processes complete messages.
 """
 from __future__ import annotations
 
+import json
 import logging
 import socket
 
 from .config import AppConfig
+from .protocol import extract_messages
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +25,25 @@ RECV_SIZE = 4096
 def _handle_client(conn: socket.socket, address: tuple[str, int]) -> None:
     """
     Read data from a single client until the connection is closed.
-    Logs received data. Closes the connection socket safely.
+    Buffers incoming bytes; only processes complete messages (4-byte header + payload).
+    Logs each received message (JSON payload). Closes the connection socket safely.
     """
     peer = f"{address[0]}:{address[1]}"
     logger.info("Client connected: %s", peer)
+    buffer: bytearray = bytearray()
     try:
         while True:
             data = conn.recv(RECV_SIZE)
             if not data:
                 break
-            logger.info("Received from %s: %r", peer, data)
+            buffer.extend(data)
+            for payload in extract_messages(buffer):
+                try:
+                    text = payload.decode("utf-8")
+                    obj = json.loads(text)
+                    logger.info("Message from %s: %s", peer, json.dumps(obj, indent=2))
+                except (ValueError, json.JSONDecodeError) as e:
+                    logger.warning("Invalid message from %s: %r (error: %s)", peer, payload[:200], e)
     finally:
         conn.close()
         logger.info("Connection closed: %s", peer)
