@@ -1,5 +1,10 @@
 """
 Main entry point for the application.
+
+What this does: loads config, sets up logging to console and file, reads system
+metrics (CPU, RAM, disk), builds a snapshot with normal/warning/danger status,
+serialises it to JSON, then round-trips back to verify the JSON is correct.
+Exit codes: 0 = success, 1 = unexpected error, 2 = config error, 3 = metrics error, 4/5 = JSON error.
 """
 from __future__ import annotations
 
@@ -23,9 +28,8 @@ from .models import (
 
 def setup_logging(config: AppConfig) -> None:
     """
-    Configure logging with console and file handlers.
-    
-    Uses log_level and log_file_path from config.
+    Set up logging so messages go to both the console and a log file.
+    Log level and file path come from config.
     """
     # Convert log level string to logging level constant
     log_level_map = {
@@ -36,19 +40,14 @@ def setup_logging(config: AppConfig) -> None:
         "CRITICAL": logging.CRITICAL,
     }
     log_level = log_level_map.get(config.log_level.upper(), logging.INFO)
-    
-    # Create log directory if it doesn't exist
+
     log_path = Path(config.log_file_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Configure root logger
+
     logger = logging.getLogger()
     logger.setLevel(log_level)
-    
-    # Remove existing handlers to avoid duplicates
     logger.handlers.clear()
-    
-    # Create formatter
+
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
@@ -110,7 +109,7 @@ def main() -> int:
         metrics = read_metrics()
         logger.info("Metrics read successfully")
         
-        # Create snapshot with data models
+        # Turn raw numbers into a Snapshot with normal/warning/danger per metric
         logger.info("Creating snapshot from metrics")
         thresholds_dict = asdict(config.danger_thresholds)
         snapshot = create_snapshot(
@@ -132,7 +131,6 @@ def main() -> int:
                 f"Warning: {[m.name for m in status_summary.warning_metrics]}"
             )
 
-        # Log metric details
         for metric in snapshot.metrics:
             logger.debug(f"Metric: {metric.name} = {metric.value}{metric.unit} (Status: {metric.status})")
         
@@ -144,8 +142,7 @@ def main() -> int:
         except (json.JSONEncodeError, TypeError) as e:
             logger.error(f"Failed to serialize snapshot to JSON: {e}", exc_info=True)
             return 4
-        
-        # Log the JSON payload
+
         logger.info("JSON payload:")
         logger.info(snapshot_json)
         
@@ -157,7 +154,6 @@ def main() -> int:
             logger.error(f"Failed to deserialize JSON (malformed JSON): {e}", exc_info=True)
             return 4
         except ValueError as e:
-            # This catches validation errors from snapshot_from_json
             logger.error(f"JSON integrity verification failed (validation error): {e}", exc_info=True)
             return 5
         
@@ -169,8 +165,7 @@ def main() -> int:
                 raise ValueError(f"Timestamp mismatch: {deserialized_snapshot.timestamp_utc} != {snapshot.timestamp_utc}")
             if len(deserialized_snapshot.metrics) != len(snapshot.metrics):
                 raise ValueError(f"Metrics count mismatch: {len(deserialized_snapshot.metrics)} != {len(snapshot.metrics)}")
-            
-            # Verify each metric
+
             for i, (original, deserialized) in enumerate(zip(snapshot.metrics, deserialized_snapshot.metrics)):
                 if original.name != deserialized.name:
                     raise ValueError(f"Metric {i} name mismatch: {deserialized.name} != {original.name}")
