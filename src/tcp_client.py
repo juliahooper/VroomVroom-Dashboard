@@ -9,10 +9,10 @@ import logging
 import socket
 from dataclasses import asdict
 
-from .block_timer import BlockTimer
-from .config import AppConfig
+from .blocktimer import BlockTimer
+from .configlib import AppConfig, ConfigError, load_config, setup_logging
 from .metrics_reader import MetricsError, read_metrics
-from .models import create_snapshot, snapshot_to_json
+from .datasnapshot import create_snapshot, snapshot_to_json
 from .protocol import encode_message
 from .raii import closing
 
@@ -58,9 +58,6 @@ def main(config_path: str | None = None) -> int:
     import os
     import sys
     from pathlib import Path
-
-    from .config import ConfigError, load_config
-    from .main import setup_logging
 
     config_path = config_path or os.environ.get(
         "VROOMVROOM_CONFIG", str(Path("config") / "config.json")

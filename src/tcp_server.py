@@ -9,7 +9,7 @@ import json
 import logging
 import socket
 
-from .config import AppConfig
+from .configlib import AppConfig
 from .protocol import extract_messages
 from .raii import closing
 
@@ -71,8 +71,7 @@ def main(config_path: str | None = None) -> int:
     import sys
     from pathlib import Path
 
-    from .config import ConfigError, load_config
-    from .main import setup_logging
+    from .configlib import ConfigError, load_config, setup_logging
 
     config_path = config_path or os.environ.get(
         "VROOMVROOM_CONFIG", str(Path("config") / "config.json")
