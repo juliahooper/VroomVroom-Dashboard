@@ -79,6 +79,7 @@ def main(config_path: str | None = None) -> int:
     return 0
 
 
+# Entry point when run as python -m src.tcp_client; not executed when module is imported.
 if __name__ == "__main__":
     import sys
     sys.exit(main())

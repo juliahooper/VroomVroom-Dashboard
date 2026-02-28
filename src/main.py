@@ -1,9 +1,10 @@
 """
 Main entry point for the application.
 
-What this does: loads config, sets up logging to console and file, reads system
-metrics (CPU, RAM, disk), builds a snapshot with normal/warning/danger status,
-serialises it to JSON, then round-trips back to verify the JSON is correct.
+Execution order: main() runs top-to-bottom—load config, set up logging, read
+metrics, build snapshot, serialise to JSON, verify integrity, then exit. See
+docs/EXECUTION_ORDER.md.
+
 Exit codes: 0 = success, 1 = unexpected error, 2 = config error, 3 = metrics error, 4/5 = JSON error.
 """
 from __future__ import annotations
@@ -154,5 +155,7 @@ def main() -> int:
         logging.shutdown()  # Flush and close all handlers for clean exit
 
 
+# Entry point: only run when this module is executed (e.g. python -m src.main),
+# not when imported. See docs/EXECUTION_ORDER.md.
 if __name__ == '__main__':
     sys.exit(main())

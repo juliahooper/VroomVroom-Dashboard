@@ -119,8 +119,9 @@ def _json_response(obj: dict, status: int) -> tuple[str, int, dict]:
 
 def main() -> int:
     """
-    Entry point: initialise config, initialise logging, register routes, run server.
-    Returns 0 on success, 2 on config error.
+    Entry point: initialise once (config, logging, app, routes), then run server.
+    After app.run(), the process responds to HTTP events; startup code is not re-run.
+    See docs/EXECUTION_ORDER.md. Returns 0 on success, 2 on config error.
     """
     config_path = os.environ.get(
         "VROOMVROOM_CONFIG", str(Path("config") / "config.json")
@@ -144,5 +145,6 @@ def main() -> int:
     return 0
 
 
+# Entry point when run as python -m src.web_app; not executed when web_app is imported.
 if __name__ == "__main__":
     sys.exit(main())
