@@ -46,6 +46,9 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
 def register_routes(app: Flask) -> None:
     """Register all URL routes on the Flask app."""
+    # Register Snapshots CRUD blueprint (POST/GET/PUT/DELETE /snapshots, PUT /devices)
+    from .snapshots import snapshots_bp
+    app.register_blueprint(snapshots_bp)
 
     @app.route("/hello")
     def hello() -> str:
@@ -134,6 +137,10 @@ def main() -> int:
 
     setup_logging(config)
     logger.info("Web server starting (config: %s)", config_path)
+
+    # Initialise the database (creates tables if they don't exist yet)
+    from .database import init_db
+    init_db()
 
     app = create_app(config)
     app.config[METRICS_CACHE_KEY] = MetricsCache(ttl_seconds=CACHE_TTL_SECONDS)

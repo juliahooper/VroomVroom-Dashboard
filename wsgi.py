@@ -44,6 +44,10 @@ except ConfigError as e:
 # Set up logging before creating the app so all startup messages are captured
 setup_logging(_config)
 
+# Initialise the database (creates tables + seeds metric_type rows if needed)
+from src.database import init_db
+init_db()
+
 # Build the Flask app, attach config and cache, register routes
 application = create_app(_config)
 application.config[METRICS_CACHE_KEY] = MetricsCache(ttl_seconds=CACHE_TTL_SECONDS)
