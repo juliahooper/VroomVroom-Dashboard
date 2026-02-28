@@ -43,6 +43,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.environ.get("VROOMVROOM_CONFIG", str(Path("config") / "config.json")),
         help="Path to config JSON (default: config/config.json or VROOMVROOM_CONFIG)",
     )
+    parser.add_argument(
+        "--agent",
+        "-a",
+        action="store_true",
+        help="Run as long-running collector agent: read metrics every interval, upload via API. Use with --interval. Graceful shutdown on SIGTERM/SIGINT.",
+    )
+    parser.add_argument(
+        "--interval",
+        "-i",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help="Collector loop interval in seconds (default: read_interval_seconds from config). Used with --agent.",
+    )
     return parser.parse_args(argv)
 
 
@@ -78,6 +92,25 @@ def main(argv: list[str] | None = None) -> int:
     # Setup logging with config values
     setup_logging(config)
     logger = logging.getLogger(__name__)
+
+    # Agent mode: continuous loop, upload via API, graceful shutdown
+    if args.agent:
+        interval = args.interval if args.interval is not None else config.read_interval_seconds
+        if interval <= 0:
+            logger.error("Interval must be positive (got %s)", interval)
+            return 2
+        api_url = os.environ.get("VROOMVROOM_API_URL", "http://127.0.0.1:5000")
+        try:
+            from .collector_agent import run_agent
+            run_agent(config, interval_seconds=interval, api_base_url=api_url)
+        except Exception as e:
+            logger.error("Agent failed: %s", e, exc_info=True)
+            logging.shutdown()
+            return 1
+        logging.shutdown()
+        logger.info("Application shutting down")
+        return 0
+
     try:
         logger.info(f"Logging configured - Level: {config.log_level}, File: {config.log_file_path}")
         

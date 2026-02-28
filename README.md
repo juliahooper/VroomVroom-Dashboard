@@ -35,6 +35,13 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
   python -m src.main
   ```
 
+- **Collector agent** (long-running: read metrics every N seconds, upload to API). Start-based scheduling (no drift); retry on upload failure; graceful shutdown on Ctrl+C or SIGTERM:
+
+  ```bash
+  python -m src.main --agent
+  ```
+  Optional: `--interval 30` (default: `read_interval_seconds` from config). Set `VROOMVROOM_API_URL` (default `http://127.0.0.1:5000`) if the API is elsewhere. Run the web app first so `/orm/upload_snapshot` is available.
+
 - **TCP server** (listens for metric data; start first):
 
   ```bash
@@ -136,7 +143,7 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ## Architecture and features
 
-- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD in `snapshots.py` and `orm_routes.py`. **Granular API:** GET /devices (sort, limit, offset); GET /snapshots (device_id filter, sort, limit, offset). Responses include `items`, `total`, `limit`, `offset` for pagination awareness. POST /orm/upload_snapshot accepts JSON DTO, validates, persists, returns structured JSON.
+- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD in `snapshots.py` and `orm_routes.py`. **Granular API:** GET /devices (sort, limit, offset); GET /snapshots (device_id filter, sort, limit, offset). POST /orm/upload_snapshot accepts JSON DTO, validates, persists. API design (bulk vs granular, versioning, security, client/server trade-offs): `docs/API_DESIGN.md`.
 - **Data model (four layers):** Database (normalized tables), ORM (`orm_models.py`), server domain (`datasnapshot/models.py`, `snapshots.py` view types), DTO (wire JSON). Timestamps UTC ISO 8601. See `docs/DATA_MODEL.md`.
 - **SQLite:** Normalised schema in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager`. See `docs/SCHEMA_DESIGN.md`.
 - **ORM:** SQLAlchemy models in `orm_models.py`; relationships and eager loading (joinedload/selectinload) in `orm_routes.py`.
@@ -152,11 +159,13 @@ VroomVroom-Dashboard/
 ├── requirements.txt
 ├── wsgi.py                    # Gunicorn entry point
 ├── docs/
+│   ├── API_DESIGN.md          # Bulk vs granular, versioning, security, client/server trade-offs
 │   ├── DATA_MODEL.md          # Four layers: DB, ORM, domain, DTO; UTC & UUID
 │   ├── EXECUTION_ORDER.md
 │   └── SCHEMA_DESIGN.md
 ├── src/
-│   ├── main.py                # CLI, metrics pipeline
+│   ├── main.py                # CLI (-c, -a/--agent, -i/--interval), metrics pipeline
+│   ├── collector_agent.py     # Long-running agent: loop, upload API, retry, graceful shutdown
 │   ├── web_app.py             # Flask app, routes, /hello, /health, /metrics
 │   ├── database.py             # SQLite schema, get_db(), init_db(), TransactionManager
 │   ├── snapshots.py           # Raw SQL CRUD (snapshots, devices)
