@@ -4,6 +4,7 @@ PoC monitor: reads OS metrics, builds a structured snapshot, and serialises to J
 
 ## Requirements
 
+
 Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (web app), **gunicorn** (production WSGI), **sqlalchemy** (ORM). Install once in a venv so the app can run locally and on the VM.
 
 ## Setup
@@ -188,6 +189,26 @@ http://200.69.13.70:5000/metrics
 | Item | How to verify |
 |------|----------------|
 | Hello World endpoint works in cloud environment | Clone repo on VM, activate venv, run gunicorn, open `http://200.69.13.70:5000/hello` in a browser. |
+
+### TCP server (Step 1 – IPC)
+
+```bash
+python -m src.tcp_server
+```
+
+Listens on the port in config (`server_port`, default 54545). Buffers incoming bytes and only processes complete protocol messages (4-byte length + payload); logs each JSON message. Stop with Ctrl+C.
+
+### TCP client (Step 2 – metric transmission)
+
+```bash
+python -m src.tcp_client
+```
+
+Connects to `server_host` and `server_port` from config (default 127.0.0.1:54545). Logs local and remote socket info, sends one JSON metric payload (device_id, timestamp, metrics with status), then closes the socket. Start the server first in another terminal.
+
+### Protocol (Step 3 – stream vs message)
+
+Messages use a **4-byte length header** (big-endian, payload length) **+ payload** (JSON UTF-8). The server buffers incoming bytes and only processes complete messages; the client sends each payload with `encode_message()` from `src.protocol`.
 
 ## Project layout
 

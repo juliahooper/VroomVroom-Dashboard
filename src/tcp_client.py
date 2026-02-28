@@ -17,6 +17,7 @@ from .protocol import encode_message
 from .raii import closing
 
 logger = logging.getLogger(__name__)
+
 ENCODING = "utf-8"
 
 
@@ -58,6 +59,8 @@ def main(config_path: str | None = None) -> int:
     import os
     import sys
     from pathlib import Path
+
+    from .configlib import ConfigError, load_config, setup_logging
 
     config_path = config_path or os.environ.get(
         "VROOMVROOM_CONFIG", str(Path("config") / "config.json")
