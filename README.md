@@ -135,7 +135,8 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 ## Architecture and features
 
 - **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD: POST/GET/PUT/DELETE for snapshots and devices (raw SQL in `snapshots.py`; ORM in `orm_routes.py` under `/orm/snapshots`, `/orm/devices`).
-- **SQLite:** Normalised schema (device, snapshot, snapshot_metric, metric_type) in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager` (BEGIN/COMMIT/ROLLBACK). See `docs/SCHEMA_DESIGN.md`.
+- **Data model (four layers):** Database (normalized tables), ORM (`orm_models.py`), server domain (`datasnapshot/models.py`, `snapshots.py` view types), DTO (wire JSON). Timestamps UTC ISO 8601. See `docs/DATA_MODEL.md`.
+- **SQLite:** Normalised schema in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager`. See `docs/SCHEMA_DESIGN.md`.
 - **ORM:** SQLAlchemy models in `orm_models.py`; relationships and eager loading (joinedload/selectinload) in `orm_routes.py`.
 - **TCP client/server:** Length-prefixed JSON messages (`src.protocol`). Server buffers and parses; client sends one snapshot per run. Config: `server_host`, `server_port`.
 - **Config:** `config/config.json` (device_id, thresholds, log level, TCP host/port). Optional `sql_echo` for SQL logging. Env overrides: `VROOMVROOM_CONFIG`, `VROOMVROOM_DB`.
@@ -149,6 +150,7 @@ VroomVroom-Dashboard/
 ├── requirements.txt
 ├── wsgi.py                    # Gunicorn entry point
 ├── docs/
+│   ├── DATA_MODEL.md          # Four layers: DB, ORM, domain, DTO; UTC & UUID
 │   ├── EXECUTION_ORDER.md
 │   └── SCHEMA_DESIGN.md
 ├── src/

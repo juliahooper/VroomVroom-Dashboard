@@ -219,9 +219,11 @@ def snapshot_from_json(json_str: str) -> Snapshot:
     if not isinstance(data["metrics"], list):
         raise ValueError("Field 'metrics' must be an array")
 
-    # Parse timestamp
+    # Parse timestamp (UTC, ISO 8601). Naive values treated as UTC.
     try:
-        timestamp = datetime.fromisoformat(data["timestamp_utc"])
+        timestamp = datetime.fromisoformat(data["timestamp_utc"].replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
     except (ValueError, TypeError) as e:
         raise ValueError(f"Invalid timestamp format: {e}") from e
 
