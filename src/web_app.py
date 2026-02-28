@@ -46,9 +46,13 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
 def register_routes(app: Flask) -> None:
     """Register all URL routes on the Flask app."""
-    # Register Snapshots CRUD blueprint (POST/GET/PUT/DELETE /snapshots, PUT /devices)
+    # Register Snapshots CRUD blueprint – raw SQL (POST/GET/PUT/DELETE /snapshots)
     from .snapshots import snapshots_bp
     app.register_blueprint(snapshots_bp)
+
+    # Register ORM blueprint – SQLAlchemy (POST/GET /orm/snapshots, GET /orm/devices)
+    from .orm_routes import orm_bp
+    app.register_blueprint(orm_bp)
 
     @app.route("/hello")
     def hello() -> str:
