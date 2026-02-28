@@ -35,6 +35,13 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
   python -m src.main
   ```
 
+- **Collector agent** (long-running: read metrics every N seconds, upload to API). Start-based scheduling (no drift); retry on upload failure; graceful shutdown on Ctrl+C or SIGTERM:
+
+  ```bash
+  python -m src.main --agent
+  ```
+  Optional: `--interval 30` (default: `read_interval_seconds` from config). Set `VROOMVROOM_API_URL` (default `http://127.0.0.1:5000`) if the API is elsewhere. Run the web app first so `/orm/upload_snapshot` is available.
+
 - **TCP server** (listens for metric data; start first):
 
   ```bash
@@ -76,8 +83,10 @@ The app accepts connections from other machines when bound to `0.0.0.0` (Flask d
 | What | How |
 |------|-----|
 | HTTP health | `curl http://<host>:5000/health` → 200 |
-| REST CRUD (raw SQL) | `curl -X POST http://<host>:5000/snapshots` → 201; `curl http://<host>:5000/snapshots` → list |
+| REST CRUD (raw SQL) | `curl -X POST http://<host>:5000/snapshots` → 201; `curl http://<host>:5000/snapshots` → list; `curl http://<host>:5000/devices` → devices (paginated) |
+| Snapshots (filter/sort/page) | `curl "http://<host>:5000/snapshots?device_id=pc-01&limit=100&offset=0&sort=timestamp_desc"` → `{ "items", "total", "limit", "offset" }` |
 | REST CRUD (ORM) | `curl -X POST http://<host>:5000/orm/snapshots` → 201; `curl http://<host>:5000/orm/devices` → 200 |
+| Upload snapshot (JSON DTO) | `curl -X POST -H "Content-Type: application/json" -d '{"device_id":"pc-01","timestamp_utc":"2025-02-28T12:00:00Z","metrics":[...]}' http://<host>:5000/orm/upload_snapshot` → 201 |
 | TCP | Start `python -m src.tcp_server`, then `python -m src.tcp_client` (uses config for host/port) |
 
 **Troubleshooting:** `curl -v http://<host>:5000/health` — connection refused means nothing listening or firewall. Server must listen on `0.0.0.0` for external access. On VM: `sudo ufw allow 5000/tcp` then `sudo ufw reload` if needed.
@@ -134,8 +143,9 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ## Architecture and features
 
-- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD: POST/GET/PUT/DELETE for snapshots and devices (raw SQL in `snapshots.py`; ORM in `orm_routes.py` under `/orm/snapshots`, `/orm/devices`).
-- **SQLite:** Normalised schema (device, snapshot, snapshot_metric, metric_type) in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager` (BEGIN/COMMIT/ROLLBACK). See `docs/SCHEMA_DESIGN.md`.
+- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD in `snapshots.py` and `orm_routes.py`. **Granular API:** GET /devices (sort, limit, offset); GET /snapshots (device_id filter, sort, limit, offset). POST /orm/upload_snapshot accepts JSON DTO, validates, persists. API design (bulk vs granular, versioning, security, client/server trade-offs): `docs/API_DESIGN.md`.
+- **Data model (four layers):** Database (normalized tables), ORM (`orm_models.py`), server domain (`datasnapshot/models.py`, `snapshots.py` view types), DTO (wire JSON). Timestamps UTC ISO 8601. See `docs/DATA_MODEL.md`.
+- **SQLite:** Normalised schema in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager`. See `docs/SCHEMA_DESIGN.md`.
 - **ORM:** SQLAlchemy models in `orm_models.py`; relationships and eager loading (joinedload/selectinload) in `orm_routes.py`.
 - **TCP client/server:** Length-prefixed JSON messages (`src.protocol`). Server buffers and parses; client sends one snapshot per run. Config: `server_host`, `server_port`.
 - **Config:** `config/config.json` (device_id, thresholds, log level, TCP host/port). Optional `sql_echo` for SQL logging. Env overrides: `VROOMVROOM_CONFIG`, `VROOMVROOM_DB`.
@@ -149,14 +159,18 @@ VroomVroom-Dashboard/
 ├── requirements.txt
 ├── wsgi.py                    # Gunicorn entry point
 ├── docs/
+│   ├── API_DESIGN.md          # Bulk vs granular, versioning, security, client/server trade-offs
+│   ├── DATA_MODEL.md          # Four layers: DB, ORM, domain, DTO; UTC & UUID
 │   ├── EXECUTION_ORDER.md
 │   └── SCHEMA_DESIGN.md
 ├── src/
-│   ├── main.py                # CLI, metrics pipeline
+│   ├── main.py                # CLI (-c, -a/--agent, -i/--interval), metrics pipeline
+│   ├── collector_agent.py     # Long-running agent: loop, upload API, retry, graceful shutdown
 │   ├── web_app.py             # Flask app, routes, /hello, /health, /metrics
 │   ├── database.py             # SQLite schema, get_db(), init_db(), TransactionManager
 │   ├── snapshots.py           # Raw SQL CRUD (snapshots, devices)
 │   ├── orm_models.py          # SQLAlchemy models
+│   ├── orm_dto.py             # ORM ↔ DTO mapping (to_dict/from_dict, datetime/UUID)
 │   ├── orm_routes.py          # ORM endpoints (/orm/snapshots, /orm/devices)
 │   ├── metrics_cache.py       # TTL cache for /metrics
 │   ├── metrics_reader.py      # psutil CPU/RAM/disk

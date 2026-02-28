@@ -1,22 +1,29 @@
 """
 ORM-backed snapshot endpoints (SQLAlchemy). Same DB as snapshots.py; compare approaches.
 
-Routes: POST/GET /orm/snapshots, GET /orm/snapshots/<id>, GET /orm/devices.
+Routes: POST/GET /orm/snapshots, GET /orm/snapshots/<id>, GET /orm/devices, POST /orm/upload_snapshot.
+ORM ↔ DTO mapping via orm_dto (to_dict/from_dict style).
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import asdict
-from datetime import datetime, timezone
 
 from flask import Blueprint, request
 from sqlalchemy import func, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from .configlib import FALLBACK_DEVICE_ID, FALLBACK_THRESHOLDS
 from .datasnapshot import create_snapshot
 from .metrics_reader import MetricsError, read_metrics
-from .orm_models import Device, MetricType, Snapshot, SnapshotMetric, get_session
+from .orm_dto import (
+    device_to_dto,
+    snapshot_from_dto,
+    snapshot_to_detail_dto,
+    snapshot_to_summary_dto,
+    validate_snapshot_upload_dto,
+)
+from .orm_models import Device, Snapshot, SnapshotMetric, get_session
 from .web_app import _json_response
 
 logger = logging.getLogger(__name__)
@@ -58,61 +65,62 @@ def orm_create_snapshot():
         thresholds=thresholds,
     )
 
-    # --- ORM: build and persist objects ---
+    # DTO from domain snapshot → ORM via explicit mapping
+    dto = {
+        "device_id": snapshot_obj.device_id,
+        "timestamp_utc": snapshot_obj.timestamp_utc.isoformat(),
+        "metrics": [
+            {"name": m.name, "value": m.value, "unit": m.unit, "status": m.status}
+            for m in snapshot_obj.metrics
+        ],
+    }
+
     with get_session() as session:
-        # Find or create the Device object
-        device = session.scalars(
-            select(Device).where(Device.device_id == device_id)
-        ).first()
+        snapshot = snapshot_from_dto(dto, session)
+        # session.commit() on exit
+        summary = snapshot_to_summary_dto(snapshot)
+        summary["stored_via"] = "sqlalchemy_orm"
 
-        if device is None:
-            device = Device(
-                device_id=device_id,
-                label="",
-                first_seen=datetime.now(timezone.utc).isoformat(),
-            )
-            session.add(device)  # stage the new Device for INSERT
-            session.flush()      # assigns device.id without committing the transaction
+    logger.info("POST /orm/snapshots – stored id=%d", summary["id"])
+    return _json_response(summary, 201)
 
-        # Build Snapshot object — SQLAlchemy will INSERT this on commit
-        new_snap = Snapshot(
-            device_id=device.id,
-            timestamp_utc=snapshot_obj.timestamp_utc.isoformat(),
-        )
-        session.add(new_snap)  # stage for INSERT
-        session.flush()        # assigns new_snap.id
 
-        # Build SnapshotMetric objects for each metric
-        for metric in snapshot_obj.metrics:
-            metric_type = session.scalars(
-                select(MetricType).where(MetricType.name == metric.name)
-            ).first()
-            if metric_type is None:
-                logger.warning("ORM: Unknown metric '%s' – skipping", metric.name)
-                continue
+# ---------------------------------------------------------------------------
+# 1b. POST /upload_snapshot — accept JSON DTO, validate, persist, return structured response
+# ---------------------------------------------------------------------------
 
-            sm = SnapshotMetric(
-                snapshot_id=new_snap.id,
-                metric_type_id=metric_type.id,
-                value=metric.value,
-                status=metric.status,
-            )
-            session.add(sm)  # stage for INSERT
+@orm_bp.route("/upload_snapshot", methods=["POST"])
+def upload_snapshot():
+    """
+    POST /orm/upload_snapshot — deserialize JSON DTO, validate required fields,
+    create ORM objects, persist in a transaction, return structured JSON.
 
-        # session.commit() is called by get_session() on clean exit
-        snapshot_id = new_snap.id
+    Request body: { "device_id": str, "timestamp_utc": str (ISO 8601), "metrics": [ { "name", "value", "unit", "status" }, ... ] }
+    Response: 201 with { "id", "device_id", "device_label", "timestamp_utc", "metric_count", "uploaded": true }
+    """
+    if not request.is_json:
+        return _json_response({"error": "Content-Type must be application/json"}, 400)
 
-    logger.info("POST /orm/snapshots – stored id=%d", snapshot_id)
-    return _json_response(
-        {
-            "id": snapshot_id,
-            "device_id": device_id,
-            "timestamp_utc": snapshot_obj.timestamp_utc.isoformat(),
-            "metric_count": len(snapshot_obj.metrics),
-            "stored_via": "sqlalchemy_orm",
-        },
-        201,
-    )
+    data = request.get_json(silent=True)
+    if data is None:
+        return _json_response({"error": "Invalid or empty JSON body"}, 400)
+
+    try:
+        dto = validate_snapshot_upload_dto(data)
+    except ValueError as e:
+        return _json_response({"error": str(e)}, 400)
+
+    try:
+        with get_session() as session:
+            snapshot = snapshot_from_dto(dto, session)
+            summary = snapshot_to_summary_dto(snapshot)
+            summary["uploaded"] = True
+    except Exception as e:
+        logger.exception("POST /orm/upload_snapshot – persist failed")
+        return _json_response({"error": f"Failed to persist snapshot: {e}"}, 500)
+
+    logger.info("POST /orm/upload_snapshot – stored id=%d device=%s", summary["id"], summary["device_id"])
+    return _json_response(summary, 201)
 
 
 # ---------------------------------------------------------------------------
@@ -132,8 +140,10 @@ def orm_list_snapshots():
         # Build the base query
         stmt = (
             select(Snapshot)
-            # joinedload: fetch Device in the same query — prevents N+1 problem
-            .options(joinedload(Snapshot.device))
+            .options(
+                joinedload(Snapshot.device),
+                selectinload(Snapshot.snapshot_metrics),
+            )
             .order_by(Snapshot.id.desc())
             .limit(limit)
         )
@@ -143,18 +153,7 @@ def orm_list_snapshots():
             stmt = stmt.join(Snapshot.device).where(Device.device_id == device_filter)
 
         snapshots = session.scalars(stmt).all()
-
-        # Relationship navigation: snapshot.device.device_id — no extra query
-        result = [
-            {
-                "id":            s.id,
-                "device_id":     s.device.device_id,    # ← navigates Device relationship
-                "device_label":  s.device.label,         # ← second attribute, same object
-                "timestamp_utc": s.timestamp_utc,
-                "metric_count":  len(s.snapshot_metrics),
-            }
-            for s in snapshots
-        ]
+        result = [snapshot_to_summary_dto(s) for s in snapshots]
 
     logger.info(
         "GET /orm/snapshots – returning %d snapshots (filter=%r)",
@@ -170,13 +169,9 @@ def orm_list_snapshots():
 @orm_bp.route("/snapshots/<int:snapshot_id>", methods=["GET"])
 def orm_get_snapshot(snapshot_id: int):
     """GET /orm/snapshots/<id> — full detail with metrics via selectinload (avoids N+1)."""
-    from sqlalchemy.orm import selectinload
-
     with get_session() as session:
         snapshot = session.scalars(
             select(Snapshot)
-            # selectinload: fetch all snapshot_metrics + their metric_type in 2 queries
-            # instead of 1 + N queries (one per metric)
             .options(
                 joinedload(Snapshot.device),
                 selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type),
@@ -187,28 +182,11 @@ def orm_get_snapshot(snapshot_id: int):
         if snapshot is None:
             return _json_response({"error": f"Snapshot {snapshot_id} not found"}, 404)
 
-        # Relationship navigation — no SQL here, data already loaded
-        metrics = [
-            {
-                "name":   sm.metric_type.name,    # ← navigate to MetricType object
-                "unit":   sm.metric_type.unit,    # ← same MetricType, no extra query
-                "value":  sm.value,
-                "status": sm.status,
-            }
-            for sm in snapshot.snapshot_metrics   # ← navigate to SnapshotMetric list
-        ]
-
-        result = {
-            "id":            snapshot.id,
-            "device_id":     snapshot.device.device_id,   # ← navigate to Device
-            "device_label":  snapshot.device.label,
-            "timestamp_utc": snapshot.timestamp_utc,
-            "metrics":       metrics,
-            "retrieved_via": "sqlalchemy_orm",
-        }
+        result = snapshot_to_detail_dto(snapshot)
+        result["retrieved_via"] = "sqlalchemy_orm"
 
     logger.info(
-        "GET /orm/snapshots/%d – found (%d metrics)", snapshot_id, len(metrics)
+        "GET /orm/snapshots/%d – found (%d metrics)", snapshot_id, len(result["metrics"])
     )
     return _json_response(result, 200)
 
@@ -236,16 +214,14 @@ def orm_list_devices():
         )
 
         rows = session.execute(stmt).all()
-
-        # Session is still open here — safe to read row values
         result = [
-            {
-                "id":             row.id,
-                "device_id":      row.device_id,
-                "label":          row.label,
-                "first_seen":     row.first_seen,
-                "snapshot_count": row.snapshot_count,
-            }
+            device_to_dto(
+                row.id,
+                row.device_id,
+                row.label,
+                row.first_seen,
+                snapshot_count=row.snapshot_count,
+            )
             for row in rows
         ]
     # Session is closed here — don't access ORM objects outside this block
