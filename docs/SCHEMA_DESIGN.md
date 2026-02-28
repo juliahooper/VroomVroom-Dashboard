@@ -1,6 +1,6 @@
-# Step 7 – Normalisation & Schema Design (DataSnapshot)
+# Schema Design
 
-This document describes the normalised schema for the VroomVroom DataSnapshot domain: **devices**, **metrics**, **snapshots**, and **snapshot_metric_values**. It explains how redundancy is eliminated and how referential integrity is enforced.
+Normalised schema for the VroomVroom DataSnapshot domain: **devices**, **metrics**, **snapshots**, and **snapshot_metric_values**. Describes how redundancy is eliminated and referential integrity is enforced. Implementation: `src/database.py` (DDL, raw SQL) and `src/orm_models.py` (ORM).
 
 ---
 
@@ -133,12 +133,25 @@ CREATE TABLE IF NOT EXISTS snapshot_metric (
 
 ---
 
-## 5. Summary
+## 5. Indexes
+
+Indexes are created in `src/database.py` after the tables. SQLite does not auto-create indexes on foreign keys; without them, JOINs and filters can do full table scans.
+
+| Index | Table | Column(s) | Purpose |
+|-------|--------|-----------|---------|
+| `idx_snapshot_device_id` | `snapshot` | `device_id` | FK; filter/join by device. |
+| `idx_snapshot_timestamp_utc` | `snapshot` | `timestamp_utc` | Time range queries, ordering. |
+| `idx_snapshot_metric_snapshot_id` | `snapshot_metric` | `snapshot_id` | FK; join metrics to snapshot. |
+| `idx_snapshot_metric_metric_type_id` | `snapshot_metric` | `metric_type_id` | FK; join to metric_type. |
+
+`device.device_id` and `metric_type.name` are UNIQUE (indexed). All primary keys are indexed by definition.
+
+---
+
+## 6. Summary
 
 | Goal | How it is achieved |
 |------|---------------------|
-| **Elimination of redundancy** | Metric definitions in one table (`metric_type`); device identity in one table (`device`). Snapshot and value tables store only IDs and values; no repeated names, units, or labels. |
-| **Referential integrity** | Foreign keys from `snapshot` → `device`, and `snapshot_metric` → `snapshot` and `metric_type`. `PRAGMA foreign_keys = ON` and optional `ON DELETE CASCADE` where the lifecycle of the child depends on the parent. |
-| **Extensibility** | New metric types: add a row to `metric_type` (and seed logic). New devices: add a row to `device`. No schema change needed for new metrics. |
-
-The implementation lives in `src/database.py` (DDL and raw SQL) and `src/orm_models.py` (ORM mappings). This document is the single place for the normalisation and schema design rationale (Step 7).
+| **No redundancy** | Metric definitions in `metric_type`; device in `device`. Snapshots and values store only IDs and values. |
+| **Referential integrity** | FKs: `snapshot` → `device`, `snapshot_metric` → `snapshot` and `metric_type`. `PRAGMA foreign_keys = ON`; `ON DELETE CASCADE` where appropriate. |
+| **Extensibility** | New metric type = new row in `metric_type`. New device = new row in `device`. No schema change for new metrics. |

@@ -47,6 +47,7 @@ class AppConfig:
     danger_thresholds: DangerThresholds
     server_port: int = DEFAULT_SERVER_PORT
     server_host: str = DEFAULT_SERVER_HOST
+    sql_echo: bool = False  # if True, SQLAlchemy logs every SQL statement (for debugging)
 
 
 # Names of required keys at the top level of the config JSON
@@ -128,6 +129,11 @@ def load_config(config_path: str | Path) -> AppConfig:
     if not isinstance(server_host, str) or not server_host.strip():
         raise ConfigError("Key 'server_host' must be a non-empty string.")
 
+    # Optional: SQLAlchemy echo (log every SQL statement)
+    sql_echo = data.get("sql_echo", False)
+    if not isinstance(sql_echo, bool):
+        raise ConfigError("Key 'sql_echo' must be a boolean.")
+
     # Build the immutable config object from validated values
     cfg = AppConfig(
         app_name=_require_str(data, "app_name", context="config root"),
@@ -142,6 +148,7 @@ def load_config(config_path: str | Path) -> AppConfig:
         ),
         server_port=server_port,
         server_host=server_host.strip(),
+        sql_echo=sql_echo,
     )
 
     # Extra check: read interval must be positive

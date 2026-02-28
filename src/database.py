@@ -65,6 +65,22 @@ CREATE TABLE IF NOT EXISTS snapshot_metric (
 );
 """
 
+# ---------------------------------------------------------------------------
+# Indexes: foreign keys and frequently filtered/sorted columns (Step 1 – indexing)
+# ---------------------------------------------------------------------------
+# SQLite does not auto-create indexes on FK columns. Explicit indexes speed up
+# JOINs, WHERE on device_id/timestamp, and ORDER BY. Use EXPLAIN QUERY PLAN to verify.
+_INDEXES_SQL = """
+CREATE INDEX IF NOT EXISTS idx_snapshot_device_id
+    ON snapshot(device_id);
+CREATE INDEX IF NOT EXISTS idx_snapshot_timestamp_utc
+    ON snapshot(timestamp_utc);
+CREATE INDEX IF NOT EXISTS idx_snapshot_metric_snapshot_id
+    ON snapshot_metric(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
+    ON snapshot_metric(metric_type_id);
+"""
+
 # The three standard metric types – inserted once when the DB is first created.
 _SEED_METRIC_TYPES = [
     ("CPU Usage",  "%"),
@@ -90,6 +106,7 @@ def init_db() -> None:
         conn.execute("PRAGMA foreign_keys = ON")
         with conn:  # transaction – commit on success, rollback on exception
             conn.executescript(_SCHEMA_SQL)
+            conn.executescript(_INDEXES_SQL)
 
             # Step 1: Insert any metric_type rows that don't exist yet.
             # Adding a new entry to _SEED_METRIC_TYPES is all that's needed —
@@ -111,6 +128,43 @@ def init_db() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Transaction manager (Step 3 – RAII: explicit BEGIN / COMMIT / ROLLBACK)
+# ---------------------------------------------------------------------------
+
+class TransactionManager:
+    """
+    RAII context manager for explicit transaction boundaries.
+
+    - __enter__: runs BEGIN (transaction starts).
+    - __exit__(normal): runs COMMIT.
+    - __exit__(exception): runs ROLLBACK, then re-raises.
+
+    Use with get_db(): open a connection, then run multi-step work inside
+    a single transaction. If any step raises, the whole transaction is rolled back.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    def __enter__(self) -> TransactionManager:
+        self._conn.execute("BEGIN")
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
+        if exc_type is not None:
+            self._conn.rollback()
+            logger.debug("Transaction rolled back due to %s", exc_type.__name__)
+            return None  # re-raise
+        self._conn.commit()
+        return None
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """The underlying connection for executing statements within this transaction."""
+        return self._conn
+
+
+# ---------------------------------------------------------------------------
 # Connection context manager (RAII)
 # ---------------------------------------------------------------------------
 
@@ -126,7 +180,8 @@ def get_db() -> Iterator[sqlite3.Connection]:
     Features:
         - Foreign keys enabled per-connection (SQLite requires this).
         - row_factory = sqlite3.Row so columns can be accessed by name: row["id"].
-        - Caller wraps mutations in `with conn:` for automatic commit/rollback.
+        - For explicit transaction boundaries use TransactionManager(conn): BEGIN on enter,
+          COMMIT on success, ROLLBACK on exception.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
