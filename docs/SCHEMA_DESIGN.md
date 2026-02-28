@@ -133,7 +133,22 @@ CREATE TABLE IF NOT EXISTS snapshot_metric (
 
 ---
 
-## 5. Summary
+## 5. Indexes (Step 1 – indexing)
+
+Explicit indexes are created in `src/database.py` after the tables. SQLite does **not** auto-create indexes on foreign-key columns; without them, JOINs and filters can do full table scans.
+
+| Index | Table | Column(s) | Purpose |
+|-------|--------|-----------|---------|
+| `idx_snapshot_device_id` | `snapshot` | `device_id` | FK; JOIN with `device`; filter by device (e.g. list snapshots for one device). |
+| `idx_snapshot_timestamp_utc` | `snapshot` | `timestamp_utc` | Frequently filtered/ordered by time; range queries. |
+| `idx_snapshot_metric_snapshot_id` | `snapshot_metric` | `snapshot_id` | FK; LEFT JOIN from `snapshot` to get metrics per snapshot. |
+| `idx_snapshot_metric_metric_type_id` | `snapshot_metric` | `metric_type_id` | FK; JOIN with `metric_type` for metric name/unit. |
+
+**Already indexed:** `device.device_id` and `metric_type.name` (UNIQUE); all primary keys (id or composite). Use **EXPLAIN QUERY PLAN** and the script `scripts/verify_indexes.py` to confirm the planner uses these indexes and to compare query times.
+
+---
+
+## 6. Summary
 
 | Goal | How it is achieved |
 |------|---------------------|

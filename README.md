@@ -70,6 +70,12 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
 
 Optional: `VROOMVROOM_CONFIG` for config path; `VROOMVROOM_DB` for DB path.
 
+- **Verify indexes** (EXPLAIN QUERY PLAN + query timing):
+
+  ```bash
+  python scripts/verify_indexes.py --iterations 200
+  ```
+
 **Local vs production:** `wsgi.py` loads config, logging, and `create_app()` the same way as `python -m src.web_app`, so gunicorn and the dev server behave identically.
 
 ## Network connectivity
@@ -303,6 +309,8 @@ VroomVroom-Dashboard/
 │   ├── configlib/
 │   └── datasnapshot/
 ├── data/                      # vroomvroom.db (created at runtime)
+├── scripts/
+│   └── verify_indexes.py      # EXPLAIN QUERY PLAN + query timing (index verification)
 ├── logs/
 └── README.md
 ```

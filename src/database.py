@@ -65,6 +65,22 @@ CREATE TABLE IF NOT EXISTS snapshot_metric (
 );
 """
 
+# ---------------------------------------------------------------------------
+# Indexes: foreign keys and frequently filtered/sorted columns (Step 1 – indexing)
+# ---------------------------------------------------------------------------
+# SQLite does not auto-create indexes on FK columns. Explicit indexes speed up
+# JOINs, WHERE on device_id/timestamp, and ORDER BY. Use EXPLAIN QUERY PLAN to verify.
+_INDEXES_SQL = """
+CREATE INDEX IF NOT EXISTS idx_snapshot_device_id
+    ON snapshot(device_id);
+CREATE INDEX IF NOT EXISTS idx_snapshot_timestamp_utc
+    ON snapshot(timestamp_utc);
+CREATE INDEX IF NOT EXISTS idx_snapshot_metric_snapshot_id
+    ON snapshot_metric(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
+    ON snapshot_metric(metric_type_id);
+"""
+
 # The three standard metric types – inserted once when the DB is first created.
 _SEED_METRIC_TYPES = [
     ("CPU Usage",  "%"),
@@ -90,6 +106,7 @@ def init_db() -> None:
         conn.execute("PRAGMA foreign_keys = ON")
         with conn:  # transaction – commit on success, rollback on exception
             conn.executescript(_SCHEMA_SQL)
+            conn.executescript(_INDEXES_SQL)
 
             # Step 1: Insert any metric_type rows that don't exist yet.
             # Adding a new entry to _SEED_METRIC_TYPES is all that's needed —
