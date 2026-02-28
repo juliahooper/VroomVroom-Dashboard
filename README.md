@@ -54,6 +54,47 @@ PoC monitor: reads OS metrics, builds a structured snapshot, and serialises to J
 
 Optional: set `VROOMVROOM_CONFIG` to a different config file path, or `VROOMVROOM_WEB_PORT` (e.g. `8080`) to change the web app port.
 
+## Deploy to VM (Hello World in the cloud)
+
+Assumes a **new VM with nothing installed** (e.g. a minimal Linux image).
+
+1. **Copy the project to the VM** (from your machine). Examples:
+   - **SCP:** `scp -r VroomVroom-Dashboard user@<VM_IP>:~`
+   - **rsync:** `rsync -avz VroomVroom-Dashboard/ user@<VM_IP>:~/VroomVroom-Dashboard/`
+   - Or on the VM: install git (`sudo apt install git`), then `git clone <repo-url> VroomVroom-Dashboard && cd VroomVroom-Dashboard`
+
+2. **On the VM, install Python.** You need Python 3, pip, and venv (Debian/Ubuntu use an “externally managed” Python, so we use a virtual environment):
+   ```bash
+   sudo apt update
+   sudo apt install -y python3 python3-pip python3-venv
+   ```
+   (On RHEL/Fedora: `sudo dnf install python3 python3-pip`. Amazon Linux: `sudo yum install python3 python3-pip`. Then use `python3 -m venv venv`; if that fails, install the distro’s `python3-venv` or equivalent.)
+
+3. **Create a virtual environment and install dependencies** (from the project root):
+   ```bash
+   cd ~/VroomVroom-Dashboard
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+   Leave the venv activated for the next step. (If you open a new terminal later, run `cd ~/VroomVroom-Dashboard` and `source venv/bin/activate` again.)
+
+4. **Run the web app** (with the venv still activated). Run **only one** of these:
+   - **Flask dev server:**  
+     `python3 -m src.web_app`
+   - **Gunicorn (production-style):**  
+     `gunicorn -w 1 -b 0.0.0.0:5000 "src.web_app:app"`  
+     (For another port: `gunicorn -w 1 -b 0.0.0.0:<port> "src.web_app:app"`.)
+
+5. **Open in a browser:**  
+// replace ur VM IP adress with 'localhost' if your running it like 5000:localhost:5000
+   `http://<VM_IP>:5000/hello`  
+   (Replace `<VM_IP>` with the VM’s public or private IP.)
+
+   Also try `http://<VM_IP>:5000/health` to confirm the app is up.
+
+**Note:** The app binds to `0.0.0.0`, so it accepts connections from outside the VM. If you can’t reach it, check the VM’s firewall/security group allows inbound TCP on port 5000 (or your chosen port).
+
 ## PoC 2.0 Definition of Done – checklist
 
 **Before you have the VM** (do these now on your machine):
