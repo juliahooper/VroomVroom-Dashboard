@@ -1,31 +1,7 @@
 """
-RESTful CRUD API for VroomVroom snapshots – backed by SQLite.
+RESTful CRUD for snapshots (raw SQL). Rows mapped to business objects; INNER/LEFT JOIN as needed.
 
-Step 5: Recordset Parsing & Object Mapping
-    SQL rows are never used raw in the routes. Every query result is immediately
-    converted to a typed business object by a dedicated mapping function.
-    This separates the database layer from the API response layer.
-
-JOIN strategy:
-    INNER JOIN  – snapshot MUST have a matching device row (enforced by FK).
-                  If somehow the device is missing, the snapshot is excluded.
-    LEFT JOIN   – a snapshot MAY have zero metric rows (e.g. immediately after
-                  the table was created but before any metrics were written).
-                  LEFT JOIN ensures these snapshots still appear in the list
-                  rather than being silently excluded.
-
-Avoiding duplicate object instantiation:
-    The full snapshot detail uses a single LEFT JOIN query that returns one row
-    per metric. _rows_to_detail() groups them into one SnapshotDetail object
-    with a list of MetricRecord children — the parent object is created exactly
-    once, not once per metric row.
-
-Endpoints:
-    POST   /snapshots           Read live OS metrics and store  → 201
-    GET    /snapshots           List all snapshots (summary)    → 200
-    GET    /snapshots/<id>      Full detail with metrics        → 200 / 404
-    PUT    /devices/<id>        Update device label             → 200 / 404
-    DELETE /snapshots/<id>      Delete (cascades to metrics)    → 204 / 404
+Endpoints: POST/GET /snapshots, GET /snapshots/<id>, PUT /devices/<id>, DELETE /snapshots/<id>.
 """
 from __future__ import annotations
 
@@ -35,6 +11,7 @@ from dataclasses import asdict, dataclass
 
 from flask import Blueprint, request
 
+from .configlib import FALLBACK_DEVICE_ID, FALLBACK_THRESHOLDS
 from .database import get_db
 from .datasnapshot import create_snapshot
 from .metrics_reader import MetricsError, read_metrics
@@ -239,8 +216,8 @@ def create_snapshot_endpoint():
         thresholds = asdict(cfg.danger_thresholds)
         device_id = cfg.device_id
     else:
-        thresholds = {"cpu_percent": 80, "ram_percent": 85, "disk_percent": 90}
-        device_id = "unknown"
+        thresholds = FALLBACK_THRESHOLDS
+        device_id = FALLBACK_DEVICE_ID
 
     snapshot = create_snapshot(
         device_id=device_id,

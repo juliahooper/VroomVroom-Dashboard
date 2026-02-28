@@ -1,37 +1,22 @@
 """
-ORM-backed snapshot endpoints – demonstrates SQLAlchemy concepts.
+ORM-backed snapshot endpoints (SQLAlchemy). Same DB as snapshots.py; compare approaches.
 
-These endpoints sit alongside the raw SQL endpoints in snapshots.py.
-Both use the same SQLite database file so you can compare the two approaches.
-
-WHAT THIS FILE DEMONSTRATES
-─────────────────────────────
-1. Session management   – get_session() context manager opens/commits/rolls back/closes
-2. Object creation      – build a Python object, session.add(), session.commit()
-3. Query filtering      – select(Snapshot).where(...), filter by device or date range
-4. Relationship navigation – snapshot.device.label without writing a JOIN
-
-Routes:
-    POST   /orm/snapshots              Read live metrics, store via ORM     → 201
-    GET    /orm/snapshots              List snapshots (optional ?device= filter) → 200
-    GET    /orm/snapshots/<id>         Full detail – navigate relationships  → 200 / 404
-    GET    /orm/devices                List all devices with snapshot counts → 200
+Routes: POST/GET /orm/snapshots, GET /orm/snapshots/<id>, GET /orm/devices.
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 from flask import Blueprint, request
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
-from .database import get_db          # raw SQL still used for INSERT helpers
+from .configlib import FALLBACK_DEVICE_ID, FALLBACK_THRESHOLDS
 from .datasnapshot import create_snapshot
 from .metrics_reader import MetricsError, read_metrics
 from .orm_models import Device, MetricType, Snapshot, SnapshotMetric, get_session
-from .snapshots import _get_or_create_device, _store_metrics, _store_snapshot
 from .web_app import _json_response
 
 logger = logging.getLogger(__name__)
@@ -45,17 +30,7 @@ orm_bp = Blueprint("orm", __name__, url_prefix="/orm")
 
 @orm_bp.route("/snapshots", methods=["POST"])
 def orm_create_snapshot():
-    """
-    POST /orm/snapshots
-    Demonstrates: session.add(), session.commit(), object creation.
-
-    We create Python objects (Device, Snapshot, SnapshotMetric) and add them to
-    the session. When we commit, SQLAlchemy generates the INSERT statements and
-    executes them — we never write SQL ourselves.
-
-    The raw SQL helper functions (_get_or_create_device etc.) are reused here
-    because the INSERT logic is identical; only the read side uses ORM.
-    """
+    """POST /orm/snapshots — read live metrics, create Device/Snapshot/SnapshotMetric via ORM, commit."""
     cfg = None
     try:
         from flask import current_app
@@ -70,13 +45,12 @@ def orm_create_snapshot():
         logger.error("POST /orm/snapshots – metrics read failed: %s", e)
         return _json_response({"error": f"Could not read OS metrics: {e}"}, 503)
 
-    from dataclasses import asdict as dc_asdict
     if cfg is not None:
-        thresholds = dc_asdict(cfg.danger_thresholds)
+        thresholds = asdict(cfg.danger_thresholds)
         device_id  = cfg.device_id
     else:
-        thresholds = {"cpu_percent": 80, "ram_percent": 85, "disk_percent": 90}
-        device_id  = "unknown"
+        thresholds = FALLBACK_THRESHOLDS
+        device_id  = FALLBACK_DEVICE_ID
 
     snapshot_obj = create_snapshot(
         device_id=device_id,
@@ -147,19 +121,7 @@ def orm_create_snapshot():
 
 @orm_bp.route("/snapshots", methods=["GET"])
 def orm_list_snapshots():
-    """
-    GET /orm/snapshots
-    Demonstrates: select(), where() filtering, joinedload() to avoid N+1 queries.
-
-    Optional query parameters:
-        ?device=<device_id>   filter to one device
-        ?limit=<n>            return at most n results (default 50)
-
-    N+1 problem explained:
-        Without joinedload, accessing snapshot.device for each snapshot would fire
-        one extra SELECT per row. joinedload fetches all devices in one JOIN so
-        we never hit the database inside the loop.
-    """
+    """GET /orm/snapshots — list snapshots (optional ?device=, ?limit=). Uses joinedload to avoid N+1."""
     device_filter = request.args.get("device")
     try:
         limit = min(int(request.args.get("limit", 50)), 200)
@@ -207,15 +169,7 @@ def orm_list_snapshots():
 
 @orm_bp.route("/snapshots/<int:snapshot_id>", methods=["GET"])
 def orm_get_snapshot(snapshot_id: int):
-    """
-    GET /orm/snapshots/<id>
-    Demonstrates: relationship navigation — traverse from Snapshot to its metrics
-    and from each metric to its MetricType, all without writing any JOINs.
-
-    The ORM lazy-loads related objects on first access inside the session.
-    We use selectinload() to fetch all snapshot_metrics in one extra SELECT
-    (better than lazy loading N separate queries for N metrics).
-    """
+    """GET /orm/snapshots/<id> — full detail with metrics via selectinload (avoids N+1)."""
     from sqlalchemy.orm import selectinload
 
     with get_session() as session:
@@ -265,13 +219,7 @@ def orm_get_snapshot(snapshot_id: int):
 
 @orm_bp.route("/devices", methods=["GET"])
 def orm_list_devices():
-    """
-    GET /orm/devices
-    Demonstrates: session lifecycle, aggregate query (COUNT), group_by.
-
-    Shows that a session is just a unit-of-work container — open it, query,
-    read results while the session is open, then close.
-    """
+    """GET /orm/devices — list devices with snapshot count (aggregate query)."""
     with get_session() as session:
         # Aggregate query: count snapshots per device without loading all snapshot rows
         stmt = (

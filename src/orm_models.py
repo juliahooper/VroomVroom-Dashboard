@@ -1,38 +1,11 @@
 """
-SQLAlchemy ORM models for VroomVroom Monitor.
+SQLAlchemy ORM models for VroomVroom — same four tables as database.py.
 
-Maps the same four database tables as database.py to Python classes so that
-rows can be read and written as objects rather than raw SQL strings.
-
-HOW ORM DIFFERS FROM RAW SQL
-─────────────────────────────
-Raw SQL (snapshots.py)          ORM (this file)
-─────────────────────────────   ─────────────────────────────────────────
-conn.execute("SELECT ...")      session.scalars(select(Snapshot).where(...))
-dict / sqlite3.Row result       Python object with typed attributes
-Manual JOIN + grouping          Relationship navigation: snapshot.device.label
-Explicit transaction control    session.commit() / session.rollback()
-
-BENEFITS OF ORM
-─────────────────────────────
-• Type-safe access to columns (snapshot.timestamp_utc, not row["timestamp_utc"])
-• Relationship navigation without writing JOINs (snapshot.device, snapshot.metrics)
-• SQLAlchemy tracks changes — modify an object and commit, no UPDATE query needed
-• Identity map: two queries for the same row return the SAME Python object (no duplicates)
-
-HIDDEN COMPLEXITY (things ORM abstracts that can catch you out)
-─────────────────────────────
-• N+1 query problem: accessing snapshot.device in a loop fires one extra SELECT per row
-  → Fix: use joinedload() or selectinload() in the query
-• Lazy loading: by default, relationships are fetched on first access. If the session
-  is closed first, you get a DetachedInstanceError
-• Session lifetime: you must keep the session open while navigating relationships
-• Implicit queries: obj.relationship_field looks like a property access but runs SQL
+Use get_session() for RAII; use joinedload/selectinload in queries to avoid N+1.
 """
 from __future__ import annotations
 
 import contextlib
-import logging
 import os
 from pathlib import Path
 from typing import Iterator
@@ -43,7 +16,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    UniqueConstraint,
     create_engine,
     event,
 )
@@ -51,13 +23,10 @@ from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
     Session,
-    joinedload,
     mapped_column,
     relationship,
     sessionmaker,
 )
-
-logger = logging.getLogger(__name__)
 
 # Use the same database file as the raw SQL layer
 _DEFAULT_DB_PATH = str(Path(__file__).parent.parent / "data" / "vroomvroom.db")

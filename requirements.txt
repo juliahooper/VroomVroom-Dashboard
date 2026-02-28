@@ -1,7 +1,5 @@
-# Python packages this project needs (install with: pip install -r requirements.txt)
-# psutil  = read CPU, RAM, disk usage from the OS (used by metrics_reader)
-# flask   = web framework for GET /hello, /health, /metrics (used by web_app)
-# gunicorn = production WSGI server (replaces Flask dev server on the VM)
+# pip install -r requirements.txt
+# psutil, flask, gunicorn, sqlalchemy
 psutil>=5.9.0
 flask>=3.0.0
 gunicorn>=21.0.0

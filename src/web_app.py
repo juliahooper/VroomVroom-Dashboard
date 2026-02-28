@@ -34,6 +34,8 @@ APP_CONFIG_KEY = "VROOMVROOM_APP_CONFIG"
 METRICS_CACHE_KEY = "METRICS_CACHE"
 # Default cache TTL in seconds (invalidation rule)
 CACHE_TTL_SECONDS = 30.0
+# Default web server port (override with VROOMVROOM_WEB_PORT)
+DEFAULT_WEB_PORT = 5000
 
 
 def create_app(config: AppConfig | None = None) -> Flask:
@@ -150,7 +152,7 @@ def main() -> int:
     app.config[METRICS_CACHE_KEY] = MetricsCache(ttl_seconds=CACHE_TTL_SECONDS)
     register_routes(app)
 
-    port = int(os.environ.get("VROOMVROOM_WEB_PORT", "5000"))
+    port = int(os.environ.get("VROOMVROOM_WEB_PORT", str(DEFAULT_WEB_PORT)))
     logger.info("Listening on 0.0.0.0:%s", port)
     app.run(host="0.0.0.0", port=port, debug=False)
     return 0

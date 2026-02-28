@@ -30,6 +30,11 @@ class DangerThresholds:
 DEFAULT_SERVER_PORT = 54545
 DEFAULT_SERVER_HOST = "127.0.0.1"
 
+# Fallbacks when the Flask app has no config (e.g. test or import-time). Not for production.
+# Use these instead of hardcoding thresholds or device_id in routes.
+FALLBACK_DEVICE_ID = "unknown"
+FALLBACK_THRESHOLDS = {"cpu_percent": 80, "ram_percent": 85, "disk_percent": 90}
+
 
 # Immutable dataclass representing all settings the app needs. Loaded once from JSON and passed around.
 @dataclass(frozen=True)

@@ -2,55 +2,30 @@
 
 PoC monitor: reads OS metrics, builds a structured snapshot, and serialises to JSON. Includes a TCP client/server for sending metrics, RAII/BlockTimer, and a Flask web app (/hello, /health, /metrics).
 
-## Requirements (what are they?)
+## Requirements
 
-**Requirements** are the extra Python packages this project depends on (beyond the standard library). They're listed in `requirements.txt`. You install them once so the code can import things like `psutil` (for CPU/RAM/disk) and `flask` (for the web server).
+Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (web app), **gunicorn** (production WSGI), **sqlalchemy** (ORM). Install once in a venv so the app can run locally and on the VM.
 
 ## Setup
 
-### 1. Install Python
-Download from [python.org](https://www.python.org/downloads/) or run `winget install Python.Python.3.12`.
+1. **Python** — [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12`.
 
-### 2. Create a virtual environment
+2. **Virtual environment** (once, from project root):
 
-A virtual environment isolates this project's packages from the rest of the system.
-Run once from the project root:
+   ```bash
+   cd VroomVroom-Dashboard
+   python -m venv venv
+   ```
 
-```bash
-cd VroomVroom-Dashboard
-python -m venv venv
-```
+   Activate (each new terminal): **Windows** `venv\Scripts\activate` · **Linux/macOS** `source venv/bin/activate`. Prompt shows `(venv)`.
 
-Activate it (required every time you open a new terminal):
+3. **Dependencies:**
 
-```bash
-# Windows
-venv\Scripts\activate
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Linux / macOS (and on the VM)
-source venv/bin/activate
-```
-
-Your prompt will show `(venv)` when active.
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-`requirements.txt` pins three packages:
-- `psutil` — reads CPU, RAM, disk from the OS
-- `flask` — web framework for /hello, /health, /metrics
-- `gunicorn` — production WSGI server (used on the VM instead of the Flask dev server)
-
-### 4. Freeze dependencies after adding new packages
-
-```bash
-pip freeze > requirements.txt
-```
-
-Run this whenever you `pip install` something new so the VM stays in sync.
+   After adding packages: `pip freeze > requirements.txt` so the VM stays in sync.
 
 ## How to run
 
@@ -86,40 +61,30 @@ Run this whenever you `pip install` something new so the VM stays in sync.
 
   Then open: `http://127.0.0.1:5000/hello`, `/health`, or `/metrics`.
 
-- **Web app — production** (gunicorn + wsgi.py, used on the VM):
+- **Web app — production** (gunicorn, e.g. on VM):
 
   ```bash
   gunicorn wsgi:application --bind 0.0.0.0:5000 --workers 2
   ```
 
-  `wsgi.py` at the project root is the WSGI entry point. It loads config, sets up logging, builds the Flask app, and exposes it as `application` — the name gunicorn looks for.
+Optional: `VROOMVROOM_CONFIG` for config path; `VROOMVROOM_DB` for DB path.
 
-Optional: set `VROOMVROOM_CONFIG` to a different config file path.
+**Local vs production:** `wsgi.py` loads config, logging, and `create_app()` the same way as `python -m src.web_app`, so gunicorn and the dev server behave identically.
 
-## WSGI configuration
+## Network connectivity
 
-`wsgi.py` (project root) bridges gunicorn and the Flask app:
+The app is **network-reachable** when run with `--bind 0.0.0.0` (gunicorn) or when the Flask dev server listens on `0.0.0.0` (default in this project), so it accepts requests from other machines, not only localhost.
 
-1. Adds the project root to `sys.path` so `src` is importable.
-2. Loads `config/config.json` (or `VROOMVROOM_CONFIG` env var).
-3. Calls `setup_logging(config)`.
-4. Calls `create_app(config)` → attaches `MetricsCache` → calls `register_routes(app)`.
-5. Exposes the result as `application` (the WSGI callable gunicorn expects).
+**How to test connectivity:**
 
-This means gunicorn and `python -m src.web_app` do exactly the same initialisation — config, logging, app, routes — so local and cloud behaviour are consistent.
+| What | How |
+|------|-----|
+| HTTP health | `curl http://<host>:5000/health` → `OK` and 200 |
+| REST CRUD (raw SQL) | `curl -X POST http://<host>:5000/snapshots` → 201 and snapshot id; `curl http://<host>:5000/snapshots` → 200 and list |
+| REST CRUD (ORM) | `curl -X POST http://<host>:5000/orm/snapshots` → 201; `curl http://<host>:5000/orm/devices` → 200 |
+| TCP metrics | Start `python -m src.tcp_server`, then `python -m src.tcp_client`; client uses `server_host` and `server_port` from config |
 
-## Local vs cloud consistency
-
-| Step | Local (`python -m src.web_app`) | Cloud (gunicorn + wsgi.py) |
-|------|----------------------------------|----------------------------|
-| Config loaded | `src/web_app.py main()` | `wsgi.py` module level |
-| Logging set up | `src/web_app.py main()` | `wsgi.py` module level |
-| App created | `create_app(config)` | `create_app(config)` |
-| Cache attached | `MetricsCache(ttl_seconds=30)` | `MetricsCache(ttl_seconds=30)` |
-| Routes registered | `register_routes(app)` | `register_routes(app)` |
-| Entry point | `__main__` guard | `wsgi:application` |
-
-Both use the same `config/config.json`, the same `create_app()` and `register_routes()` functions, and the same `MetricsCache` — so `/metrics`, `/hello`, and `/health` behave identically in both environments.
+From another machine, use the VM IP (e.g. `http://200.69.13.70:5000/health`) instead of `127.0.0.1`.
 
 ## Deploying to the VM
 
@@ -195,6 +160,18 @@ http://200.69.13.70:5000/metrics
 
 ---
 
+## PoC 4.0 Definition of Done – checklist
+
+| Criterion | How it is met | How to verify |
+|-----------|----------------|---------------|
+| **REST endpoints persist data in SQLite** | POST/GET/PUT/DELETE in `snapshots.py` and `orm_routes.py` use `get_db()` / `get_session()` and write to `data/vroomvroom.db`. | Run app, `curl -X POST http://127.0.0.1:5000/snapshots`, then `curl http://127.0.0.1:5000/snapshots` — list includes new snapshot. |
+| **CRUD operations function correctly** | Create: POST /snapshots, POST /orm/snapshots. Read: GET /snapshots, GET /snapshots/<id>, GET /orm/snapshots, GET /orm/snapshots/<id>, GET /orm/devices. Update: PUT /devices/<id>. Delete: DELETE /snapshots/<id>. | POST → 201; GET list → 200; GET by id → 200 or 404; PUT label → 200; DELETE → 204 or 404. |
+| **ORM maps tables to objects** | `orm_models.py`: Device, MetricType, Snapshot, SnapshotMetric map to tables; `orm_routes.py` uses them with relationships (joinedload, selectinload). | GET /orm/snapshots and /orm/snapshots/<id> return data built from ORM objects; GET /orm/devices returns device list with counts. |
+| **Cloud-hosted app works publicly** | Gunicorn started with `--bind 0.0.0.0:5000`; firewall allows 5000/tcp. | On VM: run gunicorn, open `http://200.69.13.70:5000/health` from a browser on your PC. |
+| **Schema normalised and integrity enforced** | `docs/SCHEMA_DESIGN.md` documents 1NF/2NF/3NF; FKs, UNIQUE, CHECK, `PRAGMA foreign_keys = ON` in `database.py`. | See SCHEMA_DESIGN.md; DB Browser or SQLite can confirm constraints. |
+| **No hardcoded magic values in SQL or API** | All SQL uses `?` placeholders. Port, device_id, thresholds, TCP host/port come from config (config.json) or from named constants in configlib (FALLBACK_* only when config absent). | Grep for literal numbers in routes: only fallbacks from configlib. Config holds device_id, danger_thresholds, server_host, server_port. |
+| **Network connectivity understood and testable** | Health endpoint and curl examples above; TCP client/server use config; bind 0.0.0.0 documented. | Use "Network connectivity" section: health, REST, and TCP tests. |
+
 ## PoC 2.0 Definition of Done – checklist
 
 **Before you have the VM** (do these now on your machine):
@@ -216,23 +193,29 @@ http://200.69.13.70:5000/metrics
 
 ```
 VroomVroom-Dashboard/
-├── config/
-│   └── config.json           # App config (no hardcoded values in code)
-├── requirements.txt           # Python packages (psutil, flask, gunicorn)
-├── wsgi.py                    # WSGI entry point for gunicorn (production)
+├── config/config.json
+├── requirements.txt
+├── wsgi.py                    # Gunicorn entry point
+├── docs/
+│   ├── EXECUTION_ORDER.md
+│   └── SCHEMA_DESIGN.md       # Normalised schema (Step 7)
 ├── src/
-│   ├── __init__.py
-│   ├── main.py                # CLI entry point with argparse (-s/-c/-a modes)
-│   ├── web_app.py             # Flask app: /hello, /health, /metrics
-│   ├── metrics_cache.py       # Thread-safe TTL cache for /metrics
-│   ├── metrics_reader.py      # Read OS metrics (CPU, RAM, disk) via psutil
-│   ├── protocol.py            # 4-byte length header + payload (stream vs message)
-│   ├── tcp_server.py          # TCP server: listen, accept, reconstruct messages
-│   ├── tcp_client.py          # TCP client: send JSON metrics with BlockTimer
-│   ├── raii.py                # RAII helpers (closing sockets)
-│   ├── blocktimer/            # RAII timing (perf_counter, log duration)
-│   ├── configlib/             # Config loading, validation, logging setup
-│   └── datasnapshot/          # Metric/Snapshot models, JSON serialisation, status
-├── logs/                      # Created at runtime (log_file_path in config)
+│   ├── main.py                # CLI (-s/-c/-a), metrics pipeline
+│   ├── web_app.py             # Flask: /hello, /health, /metrics, route registration
+│   ├── database.py            # SQLite schema, get_db(), init_db()
+│   ├── snapshots.py           # Raw SQL CRUD (POST/GET/PUT/DELETE snapshots, devices)
+│   ├── orm_models.py          # SQLAlchemy models, get_session()
+│   ├── orm_routes.py          # ORM endpoints (/orm/snapshots, /orm/devices)
+│   ├── metrics_cache.py       # TTL cache for /metrics
+│   ├── metrics_reader.py      # psutil CPU/RAM/disk
+│   ├── protocol.py            # Length-prefixed TCP messages
+│   ├── tcp_server.py
+│   ├── tcp_client.py
+│   ├── raii.py
+│   ├── blocktimer/
+│   ├── configlib/
+│   └── datasnapshot/
+├── data/                      # vroomvroom.db (created at runtime)
+├── logs/
 └── README.md
 ```

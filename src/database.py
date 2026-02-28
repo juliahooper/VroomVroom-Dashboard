@@ -1,37 +1,8 @@
 """
-SQLite database setup and connection management for VroomVroom Monitor.
+SQLite database for VroomVroom. Schema (normalised): docs/SCHEMA_DESIGN.md.
 
-Normalised schema – four tables:
-
-    device          – one row per monitored machine
-                      PRIMARY KEY id, unique device_id string, optional label
-
-    metric_type     – defines the available metric names and units
-                      PRIMARY KEY id, unique name (e.g. "CPU Usage"), unit (e.g. "%")
-                      Seeded once at init_db() with the three standard metrics.
-
-    snapshot        – one row per reading event
-                      PRIMARY KEY id
-                      FOREIGN KEY device_id → device(id)  ON DELETE CASCADE
-
-    snapshot_metric – junction table  (many-to-many: snapshot ↔ metric_type)
-                      Each row = one metric value recorded in one snapshot.
-                      COMPOSITE PRIMARY KEY (snapshot_id, metric_type_id)
-                      FOREIGN KEY snapshot_id    → snapshot(id)     ON DELETE CASCADE
-                      FOREIGN KEY metric_type_id → metric_type(id)
-
-Relationships:
-    device     1──* snapshot           (one device, many snapshots)
-    snapshot   *──* metric_type        (via snapshot_metric)
-                   ↑ many-to-many with composite PK junction table
-
-RAII:
-    All connections are opened inside context managers so they are always
-    closed – even if an exception is raised mid-query.
-
-No SQL injection:
-    Every query that accepts external input uses ? placeholders, never
-    string formatting.
+Tables: device, metric_type, snapshot, snapshot_metric. RAII via get_db();
+parameterized queries only (no string formatting for user input).
 """
 from __future__ import annotations
 
