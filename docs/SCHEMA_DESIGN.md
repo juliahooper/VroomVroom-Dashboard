@@ -152,6 +152,8 @@ Explicit indexes are created in `src/database.py` after the tables. SQLite does 
 
 **Step 5 – ORM relationships & loading:** Relationships are configured in `src/orm_models.py` (Device↔Snapshot, Snapshot↔SnapshotMetric↔MetricType) with default **lazy="select"**. **Eager loading** uses `joinedload(Snapshot.device)` and `selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type)` in `orm_routes.py` to avoid N+1 queries. **Object navigation:** e.g. `snapshot.device.device_id`, `sm.metric_type.name`. Set **VROOMVROOM_SQL_ECHO=1** to log all generated SQL; run `scripts/demo_orm_loading.py` to see lazy vs eager SQL.
 
+**Step 6 – Change tracking & session lifecycle:** Run `scripts/demo_session_lifecycle.py` to see **session.add()** (stage for insert), **session.flush()** (emit SQL, assign PKs, no COMMIT), **session.commit()**, **session.rollback()** (discard pending changes), and **session.expunge()** (detach object from session). The script inspects **session.identity_map** (all tracked instances) and **session.dirty** (modified instances), and proves that the same primary key returns the **same in-memory object** (identity map uniqueness).
+
 ---
 
 ## 6. Summary

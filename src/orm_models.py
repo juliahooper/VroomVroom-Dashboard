@@ -189,3 +189,12 @@ def get_session() -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+def create_session() -> Session:
+    """
+    Return a new Session without the context manager. Caller must call
+    session.close() when done. Use for demos/tests that need manual
+    commit/rollback (e.g. demonstrating session.rollback()).
+    """
+    return _SessionFactory()
