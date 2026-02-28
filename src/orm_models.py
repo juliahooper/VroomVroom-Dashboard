@@ -32,8 +32,11 @@ from sqlalchemy.orm import (
 _DEFAULT_DB_PATH = str(Path(__file__).parent.parent / "data" / "vroomvroom.db")
 _DB_PATH: str = os.environ.get("VROOMVROOM_DB", _DEFAULT_DB_PATH)
 
+# Step 5 – enable SQL logging to inspect generated queries (set VROOMVROOM_SQL_ECHO=1)
+_SQL_ECHO = os.environ.get("VROOMVROOM_SQL_ECHO", "").lower() in ("1", "true", "yes")
+
 # SQLAlchemy engine – connects to the same SQLite file as raw SQL
-_engine = create_engine(f"sqlite:///{_DB_PATH}", echo=False)
+_engine = create_engine(f"sqlite:///{_DB_PATH}", echo=_SQL_ECHO)
 
 # Enable foreign key enforcement for every SQLite connection opened by the engine
 @event.listens_for(_engine, "connect")
@@ -65,11 +68,12 @@ class Device(Base):
     label:      Mapped[str] = mapped_column(String, nullable=False, default="")
     first_seen: Mapped[str] = mapped_column(String, nullable=False)
 
-    # Relationship: navigate from a Device to all its Snapshots without writing a JOIN
+    # Relationship: one Device → many Snapshots. Default lazy="select" (load on access).
     snapshots: Mapped[list[Snapshot]] = relationship(
         "Snapshot",
         back_populates="device",
-        cascade="all, delete-orphan",  # deleting a Device deletes its Snapshots
+        cascade="all, delete-orphan",
+        lazy="select",  # lazy load: query when device.snapshots is first accessed
     )
 
     def __repr__(self) -> str:
@@ -88,9 +92,9 @@ class MetricType(Base):
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     unit: Mapped[str] = mapped_column(String, nullable=False)
 
-    # Relationship: navigate from MetricType to all recorded values
+    # One-to-many: MetricType → SnapshotMetric (lazy load unless eager-loaded).
     snapshot_metrics: Mapped[list[SnapshotMetric]] = relationship(
-        "SnapshotMetric", back_populates="metric_type"
+        "SnapshotMetric", back_populates="metric_type", lazy="select"
     )
 
     def __repr__(self) -> str:
@@ -111,12 +115,14 @@ class Snapshot(Base):
     device_id:     Mapped[int] = mapped_column(ForeignKey("device.id"), nullable=False)
     timestamp_utc: Mapped[str] = mapped_column(String, nullable=False)
 
-    # Relationship navigation (no JOIN needed in application code)
-    device:           Mapped[Device]              = relationship("Device", back_populates="snapshots")
+    # Many-to-one: Snapshot → Device. Lazy load by default.
+    device: Mapped[Device] = relationship("Device", back_populates="snapshots", lazy="select")
+    # One-to-many: Snapshot → SnapshotMetric list. Use joinedload/selectinload in queries to eager load.
     snapshot_metrics: Mapped[list[SnapshotMetric]] = relationship(
         "SnapshotMetric",
         back_populates="snapshot",
-        cascade="all, delete-orphan",  # deleting a Snapshot deletes its metrics
+        cascade="all, delete-orphan",
+        lazy="select",
     )
 
     def __repr__(self) -> str:
@@ -142,9 +148,9 @@ class SnapshotMetric(Base):
     value:          Mapped[float] = mapped_column(Float, nullable=False)
     status:         Mapped[str]   = mapped_column(String, nullable=False)
 
-    # Relationship navigation — traverse to sibling objects without extra queries
-    snapshot:    Mapped[Snapshot]    = relationship("Snapshot",    back_populates="snapshot_metrics")
-    metric_type: Mapped[MetricType]  = relationship("MetricType",  back_populates="snapshot_metrics")
+    # Navigate to parent Snapshot and MetricType (lazy load unless eager-loaded in query).
+    snapshot: Mapped[Snapshot] = relationship("Snapshot", back_populates="snapshot_metrics", lazy="select")
+    metric_type: Mapped[MetricType] = relationship("MetricType", back_populates="snapshot_metrics", lazy="select")
 
     def __repr__(self) -> str:
         return f"<SnapshotMetric snap={self.snapshot_id} type={self.metric_type_id} value={self.value}>"

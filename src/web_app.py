@@ -144,6 +144,9 @@ def main() -> int:
     setup_logging(config)
     logger.info("Web server starting (config: %s)", config_path)
 
+    # SQLAlchemy engine (orm_models) reads this at import time; set before register_routes
+    os.environ["VROOMVROOM_SQL_ECHO"] = "1" if config.sql_echo else "0"
+
     # Initialise the database (creates tables if they don't exist yet)
     from .database import init_db
     init_db()

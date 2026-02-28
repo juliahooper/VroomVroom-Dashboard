@@ -44,6 +44,9 @@ except ConfigError as e:
 # Set up logging before creating the app so all startup messages are captured
 setup_logging(_config)
 
+# SQLAlchemy engine (in orm_models) reads this at import time; set before register_routes
+os.environ["VROOMVROOM_SQL_ECHO"] = "1" if _config.sql_echo else "0"
+
 # Initialise the database (creates tables + seeds metric_type rows if needed)
 from src.database import init_db
 init_db()

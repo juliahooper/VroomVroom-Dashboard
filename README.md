@@ -84,6 +84,13 @@ Optional: `VROOMVROOM_CONFIG` for config path; `VROOMVROOM_DB` for DB path.
 
 **Step 3 – Transactions:** POST /snapshots uses `TransactionManager` (context manager): explicit BEGIN on enter, COMMIT on success, ROLLBACK on exception. The multi-step insert (device lookup/insert, snapshot row, snapshot_metric rows) runs in a single transaction so a failure in any step leaves the DB unchanged.
 
+- **Step 5 – ORM relationships (lazy / eager / navigation):**
+
+  ```bash
+  VROOMVROOM_SQL_ECHO=1 python scripts/demo_orm_loading.py
+  ```
+  With `VROOMVROOM_SQL_ECHO=1`, SQLAlchemy logs every generated SQL query so you can see lazy (N+1) vs eager (joinedload) loading. Relationships and object navigation: `snapshot.device.device_id`, `sm.metric_type.name`. To enable SQL logging for the web app: set `VROOMVROOM_SQL_ECHO=1` before starting Flask/gunicorn, or set `"sql_echo": true` in `config/config.json`.
+
 **Local vs production:** `wsgi.py` loads config, logging, and `create_app()` the same way as `python -m src.web_app`, so gunicorn and the dev server behave identically.
 
 ## Network connectivity
@@ -319,7 +326,8 @@ VroomVroom-Dashboard/
 ├── data/                      # vroomvroom.db (created at runtime)
 ├── scripts/
 │   ├── verify_indexes.py      # EXPLAIN QUERY PLAN + query timing (index verification)
-│   └── performance_scan_vs_search.py  # Step 2: scan vs search, BlockTimer, O(n) vs O(log n)
+│   ├── performance_scan_vs_search.py  # Step 2: scan vs search, BlockTimer, O(n) vs O(log n)
+│   └── demo_orm_loading.py             # Step 5: lazy vs eager loading, object navigation, SQL echo
 ├── logs/
 └── README.md
 ```

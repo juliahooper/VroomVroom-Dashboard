@@ -150,6 +150,8 @@ Explicit indexes are created in `src/database.py` after the tables. SQLite does 
 
 **Step 3 – Transactions (RAII):** `TransactionManager` in `src/database.py` is a context manager: **BEGIN** on `__enter__`, **COMMIT** on normal `__exit__`, **ROLLBACK** on exception. POST /snapshots uses it so the multi-step insert (get-or-create device, insert snapshot, insert snapshot_metric rows) runs in one transaction; if any step fails, the whole change is rolled back.
 
+**Step 5 – ORM relationships & loading:** Relationships are configured in `src/orm_models.py` (Device↔Snapshot, Snapshot↔SnapshotMetric↔MetricType) with default **lazy="select"**. **Eager loading** uses `joinedload(Snapshot.device)` and `selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type)` in `orm_routes.py` to avoid N+1 queries. **Object navigation:** e.g. `snapshot.device.device_id`, `sm.metric_type.name`. Set **VROOMVROOM_SQL_ECHO=1** to log all generated SQL; run `scripts/demo_orm_loading.py` to see lazy vs eager SQL.
+
 ---
 
 ## 6. Summary
