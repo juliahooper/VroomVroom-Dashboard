@@ -87,6 +87,8 @@ Used over HTTP and TCP. Defined by serialization in `src/datasnapshot/models.py`
 
 - **Timestamps on wire:** Always ISO 8601 in UTC (e.g. with `Z` or `+00:00`). Serialization uses `datetime.isoformat()`; parsing uses `datetime.fromisoformat()` and normalizes naive datetimes to UTC.
 
+**ORM ↔ DTO translation** (`src/orm_dto.py`): Explicit mapping only. **ORM → DTO:** `snapshot_to_summary_dto()`, `snapshot_to_detail_dto()`, `device_to_dto()`. **DTO → ORM:** `snapshot_from_dto(dto, session)` builds Device (if missing), Snapshot, and SnapshotMetric rows. **Datetime:** `datetime_to_iso()` (datetime or str → ISO 8601 string), `iso_to_utc_datetime()` (string → timezone-aware UTC datetime). **UUID:** `uuid_to_str()` / `str_to_uuid()` for when schema has UUID columns.
+
 ---
 
 ## Timestamps (UTC, ISO 8601)

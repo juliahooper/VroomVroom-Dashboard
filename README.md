@@ -159,6 +159,7 @@ VroomVroom-Dashboard/
 │   ├── database.py             # SQLite schema, get_db(), init_db(), TransactionManager
 │   ├── snapshots.py           # Raw SQL CRUD (snapshots, devices)
 │   ├── orm_models.py          # SQLAlchemy models
+│   ├── orm_dto.py             # ORM ↔ DTO mapping (to_dict/from_dict, datetime/UUID)
 │   ├── orm_routes.py          # ORM endpoints (/orm/snapshots, /orm/devices)
 │   ├── metrics_cache.py       # TTL cache for /metrics
 │   ├── metrics_reader.py      # psutil CPU/RAM/disk
