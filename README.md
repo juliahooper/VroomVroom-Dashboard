@@ -82,6 +82,8 @@ Optional: `VROOMVROOM_CONFIG` for config path; `VROOMVROOM_DB` for DB path.
   python scripts/performance_scan_vs_search.py --iterations 500
   ```
 
+**Step 3 – Transactions:** POST /snapshots uses `TransactionManager` (context manager): explicit BEGIN on enter, COMMIT on success, ROLLBACK on exception. The multi-step insert (device lookup/insert, snapshot row, snapshot_metric rows) runs in a single transaction so a failure in any step leaves the DB unchanged.
+
 **Local vs production:** `wsgi.py` loads config, logging, and `create_app()` the same way as `python -m src.web_app`, so gunicorn and the dev server behave identically.
 
 ## Network connectivity
@@ -301,7 +303,7 @@ VroomVroom-Dashboard/
 ├── src/
 │   ├── main.py                # CLI (-s/-c/-a), metrics pipeline
 │   ├── web_app.py             # Flask: /hello, /health, /metrics, route registration
-│   ├── database.py            # SQLite schema, get_db(), init_db()
+│   ├── database.py            # SQLite schema, get_db(), init_db(), TransactionManager (Step 3)
 │   ├── snapshots.py           # Raw SQL CRUD (POST/GET/PUT/DELETE snapshots, devices)
 │   ├── orm_models.py          # SQLAlchemy models, get_session()
 │   ├── orm_routes.py          # ORM endpoints (/orm/snapshots, /orm/devices)

@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from flask import Blueprint, request
 
 from .configlib import FALLBACK_DEVICE_ID, FALLBACK_THRESHOLDS
-from .database import get_db
+from .database import get_db, TransactionManager
 from .datasnapshot import create_snapshot
 from .metrics_reader import MetricsError, read_metrics
 from .web_app import _json_response
@@ -225,11 +225,12 @@ def create_snapshot_endpoint():
         thresholds=thresholds,
     )
 
+    # Multi-step insert in a single transaction (RAII: BEGIN → COMMIT or ROLLBACK)
     with get_db() as conn:
-        with conn:
-            device_pk = _get_or_create_device(conn, snapshot.device_id)
-            snapshot_id = _store_snapshot(conn, device_pk, snapshot)
-            _store_metrics(conn, snapshot_id, snapshot)
+        with TransactionManager(conn) as tx:
+            device_pk = _get_or_create_device(tx.conn, snapshot.device_id)
+            snapshot_id = _store_snapshot(tx.conn, device_pk, snapshot)
+            _store_metrics(tx.conn, snapshot_id, snapshot)
 
     logger.info(
         "POST /snapshots – stored id=%d device='%s' metrics=%d",

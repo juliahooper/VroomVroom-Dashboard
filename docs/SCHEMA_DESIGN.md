@@ -148,6 +148,8 @@ Explicit indexes are created in `src/database.py` after the tables. SQLite does 
 
 **Step 2 – Performance (scan vs search):** Run `scripts/performance_scan_vs_search.py` to compare the same query with and without `idx_snapshot_device_id`. With the index, the planner uses a B-tree **SEARCH** (O(log n)); without it, a full table **SCAN** (O(n)). BlockTimer logs the execution time for both; the script prints the ratio and explains why index lookups scale better as the table grows.
 
+**Step 3 – Transactions (RAII):** `TransactionManager` in `src/database.py` is a context manager: **BEGIN** on `__enter__`, **COMMIT** on normal `__exit__`, **ROLLBACK** on exception. POST /snapshots uses it so the multi-step insert (get-or-create device, insert snapshot, insert snapshot_metric rows) runs in one transaction; if any step fails, the whole change is rolled back.
+
 ---
 
 ## 6. Summary
