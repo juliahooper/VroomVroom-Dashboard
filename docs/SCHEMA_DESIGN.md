@@ -1,6 +1,6 @@
-# Step 7 – Normalisation & Schema Design (DataSnapshot)
+# Schema Design
 
-This document describes the normalised schema for the VroomVroom DataSnapshot domain: **devices**, **metrics**, **snapshots**, and **snapshot_metric_values**. It explains how redundancy is eliminated and how referential integrity is enforced.
+Normalised schema for the VroomVroom DataSnapshot domain: **devices**, **metrics**, **snapshots**, and **snapshot_metric_values**. Describes how redundancy is eliminated and referential integrity is enforced. Implementation: `src/database.py` (DDL, raw SQL) and `src/orm_models.py` (ORM).
 
 ---
 
@@ -133,26 +133,18 @@ CREATE TABLE IF NOT EXISTS snapshot_metric (
 
 ---
 
-## 5. Indexes (Step 1 – indexing)
+## 5. Indexes
 
-Explicit indexes are created in `src/database.py` after the tables. SQLite does **not** auto-create indexes on foreign-key columns; without them, JOINs and filters can do full table scans.
+Indexes are created in `src/database.py` after the tables. SQLite does not auto-create indexes on foreign keys; without them, JOINs and filters can do full table scans.
 
 | Index | Table | Column(s) | Purpose |
 |-------|--------|-----------|---------|
-| `idx_snapshot_device_id` | `snapshot` | `device_id` | FK; JOIN with `device`; filter by device (e.g. list snapshots for one device). |
-| `idx_snapshot_timestamp_utc` | `snapshot` | `timestamp_utc` | Frequently filtered/ordered by time; range queries. |
-| `idx_snapshot_metric_snapshot_id` | `snapshot_metric` | `snapshot_id` | FK; LEFT JOIN from `snapshot` to get metrics per snapshot. |
-| `idx_snapshot_metric_metric_type_id` | `snapshot_metric` | `metric_type_id` | FK; JOIN with `metric_type` for metric name/unit. |
+| `idx_snapshot_device_id` | `snapshot` | `device_id` | FK; filter/join by device. |
+| `idx_snapshot_timestamp_utc` | `snapshot` | `timestamp_utc` | Time range queries, ordering. |
+| `idx_snapshot_metric_snapshot_id` | `snapshot_metric` | `snapshot_id` | FK; join metrics to snapshot. |
+| `idx_snapshot_metric_metric_type_id` | `snapshot_metric` | `metric_type_id` | FK; join to metric_type. |
 
-**Already indexed:** `device.device_id` and `metric_type.name` (UNIQUE); all primary keys (id or composite). Use **EXPLAIN QUERY PLAN** and the script `scripts/verify_indexes.py` to confirm the planner uses these indexes and to compare query times.
-
-**Step 2 – Performance (scan vs search):** Run `scripts/performance_scan_vs_search.py` to compare the same query with and without `idx_snapshot_device_id`. With the index, the planner uses a B-tree **SEARCH** (O(log n)); without it, a full table **SCAN** (O(n)). BlockTimer logs the execution time for both; the script prints the ratio and explains why index lookups scale better as the table grows.
-
-**Step 3 – Transactions (RAII):** `TransactionManager` in `src/database.py` is a context manager: **BEGIN** on `__enter__`, **COMMIT** on normal `__exit__`, **ROLLBACK** on exception. POST /snapshots uses it so the multi-step insert (get-or-create device, insert snapshot, insert snapshot_metric rows) runs in one transaction; if any step fails, the whole change is rolled back.
-
-**Step 5 – ORM relationships & loading:** Relationships are configured in `src/orm_models.py` (Device↔Snapshot, Snapshot↔SnapshotMetric↔MetricType) with default **lazy="select"**. **Eager loading** uses `joinedload(Snapshot.device)` and `selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type)` in `orm_routes.py` to avoid N+1 queries. **Object navigation:** e.g. `snapshot.device.device_id`, `sm.metric_type.name`. Set **VROOMVROOM_SQL_ECHO=1** to log generated SQL.
-
-**Step 6 – Change tracking & session lifecycle:** Implemented in `orm_routes.py` and `orm_models.py`: **session.add()** (stage for insert), **session.flush()** (emit SQL, assign PKs, no COMMIT), **session.commit()** (via `get_session()` on exit). **session.rollback()** on exception. Identity map: same primary key returns the **same in-memory object**; `create_session()` available for manual lifecycle control.
+`device.device_id` and `metric_type.name` are UNIQUE (indexed). All primary keys are indexed by definition.
 
 ---
 
@@ -160,8 +152,6 @@ Explicit indexes are created in `src/database.py` after the tables. SQLite does 
 
 | Goal | How it is achieved |
 |------|---------------------|
-| **Elimination of redundancy** | Metric definitions in one table (`metric_type`); device identity in one table (`device`). Snapshot and value tables store only IDs and values; no repeated names, units, or labels. |
-| **Referential integrity** | Foreign keys from `snapshot` → `device`, and `snapshot_metric` → `snapshot` and `metric_type`. `PRAGMA foreign_keys = ON` and optional `ON DELETE CASCADE` where the lifecycle of the child depends on the parent. |
-| **Extensibility** | New metric types: add a row to `metric_type` (and seed logic). New devices: add a row to `device`. No schema change needed for new metrics. |
-
-The implementation lives in `src/database.py` (DDL and raw SQL) and `src/orm_models.py` (ORM mappings). This document is the single place for the normalisation and schema design rationale (Step 7).
+| **No redundancy** | Metric definitions in `metric_type`; device in `device`. Snapshots and values store only IDs and values. |
+| **Referential integrity** | FKs: `snapshot` → `device`, `snapshot_metric` → `snapshot` and `metric_type`. `PRAGMA foreign_keys = ON`; `ON DELETE CASCADE` where appropriate. |
+| **Extensibility** | New metric type = new row in `metric_type`. New device = new row in `device`. No schema change for new metrics. |
