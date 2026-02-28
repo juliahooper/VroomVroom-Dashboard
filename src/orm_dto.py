@@ -131,6 +131,68 @@ def device_to_dto(
 
 
 # ---------------------------------------------------------------------------
+# Validation for upload DTO
+# ---------------------------------------------------------------------------
+
+def validate_snapshot_upload_dto(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Validate incoming JSON DTO for POST /upload_snapshot. Returns a normalized
+    DTO dict suitable for snapshot_from_dto(), or raises ValueError with a
+    clear message.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("Body must be a JSON object")
+
+    for key in ("device_id", "timestamp_utc", "metrics"):
+        if key not in data:
+            raise ValueError(f"Missing required field: {key!r}")
+
+    device_id = data["device_id"]
+    if not isinstance(device_id, str) or not device_id.strip():
+        raise ValueError("Field 'device_id' must be a non-empty string")
+    device_id = device_id.strip()
+
+    timestamp_utc = data["timestamp_utc"]
+    if not isinstance(timestamp_utc, str) or not timestamp_utc.strip():
+        raise ValueError("Field 'timestamp_utc' must be a non-empty ISO 8601 string")
+    try:
+        iso_to_utc_datetime(timestamp_utc)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid 'timestamp_utc' format: {e}") from e
+
+    metrics = data["metrics"]
+    if not isinstance(metrics, list):
+        raise ValueError("Field 'metrics' must be an array")
+
+    normalized_metrics: list[dict[str, Any]] = []
+    for i, m in enumerate(metrics):
+        if not isinstance(m, dict):
+            raise ValueError(f"metrics[{i}] must be an object")
+        for key in ("name", "value", "unit", "status"):
+            if key not in m:
+                raise ValueError(f"metrics[{i}] missing required field: {key!r}")
+        status = str(m["status"])
+        if status not in ("normal", "warning", "danger"):
+            raise ValueError(f"metrics[{i}].status must be one of: normal, warning, danger")
+        try:
+            value = float(m["value"])
+        except (TypeError, ValueError):
+            raise ValueError(f"metrics[{i}].value must be a number")
+        normalized_metrics.append({
+            "name": str(m["name"]),
+            "value": value,
+            "unit": str(m["unit"]),
+            "status": status,
+        })
+
+    return {
+        "device_id": device_id,
+        "timestamp_utc": timestamp_utc.strip(),
+        "metrics": normalized_metrics,
+    }
+
+
+# ---------------------------------------------------------------------------
 # DTO → ORM (from_dict-style)
 # ---------------------------------------------------------------------------
 
@@ -203,6 +265,7 @@ __all__ = [
     "iso_to_utc_datetime",
     "uuid_to_str",
     "str_to_uuid",
+    "validate_snapshot_upload_dto",
     "snapshot_to_summary_dto",
     "snapshot_to_detail_dto",
     "device_to_dto",

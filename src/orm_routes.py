@@ -1,12 +1,13 @@
 """
 ORM-backed snapshot endpoints (SQLAlchemy). Same DB as snapshots.py; compare approaches.
 
-Routes: POST/GET /orm/snapshots, GET /orm/snapshots/<id>, GET /orm/devices.
+Routes: POST/GET /orm/snapshots, GET /orm/snapshots/<id>, GET /orm/devices, POST /orm/upload_snapshot.
 ORM ↔ DTO mapping via orm_dto (to_dict/from_dict style).
 """
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 
 from flask import Blueprint, request
 from sqlalchemy import func, select
@@ -20,6 +21,7 @@ from .orm_dto import (
     snapshot_from_dto,
     snapshot_to_detail_dto,
     snapshot_to_summary_dto,
+    validate_snapshot_upload_dto,
 )
 from .orm_models import Device, Snapshot, SnapshotMetric, get_session
 from .web_app import _json_response
@@ -80,6 +82,44 @@ def orm_create_snapshot():
         summary["stored_via"] = "sqlalchemy_orm"
 
     logger.info("POST /orm/snapshots – stored id=%d", summary["id"])
+    return _json_response(summary, 201)
+
+
+# ---------------------------------------------------------------------------
+# 1b. POST /upload_snapshot — accept JSON DTO, validate, persist, return structured response
+# ---------------------------------------------------------------------------
+
+@orm_bp.route("/upload_snapshot", methods=["POST"])
+def upload_snapshot():
+    """
+    POST /orm/upload_snapshot — deserialize JSON DTO, validate required fields,
+    create ORM objects, persist in a transaction, return structured JSON.
+
+    Request body: { "device_id": str, "timestamp_utc": str (ISO 8601), "metrics": [ { "name", "value", "unit", "status" }, ... ] }
+    Response: 201 with { "id", "device_id", "device_label", "timestamp_utc", "metric_count", "uploaded": true }
+    """
+    if not request.is_json:
+        return _json_response({"error": "Content-Type must be application/json"}, 400)
+
+    data = request.get_json(silent=True)
+    if data is None:
+        return _json_response({"error": "Invalid or empty JSON body"}, 400)
+
+    try:
+        dto = validate_snapshot_upload_dto(data)
+    except ValueError as e:
+        return _json_response({"error": str(e)}, 400)
+
+    try:
+        with get_session() as session:
+            snapshot = snapshot_from_dto(dto, session)
+            summary = snapshot_to_summary_dto(snapshot)
+            summary["uploaded"] = True
+    except Exception as e:
+        logger.exception("POST /orm/upload_snapshot – persist failed")
+        return _json_response({"error": f"Failed to persist snapshot: {e}"}, 500)
+
+    logger.info("POST /orm/upload_snapshot – stored id=%d device=%s", summary["id"], summary["device_id"])
     return _json_response(summary, 201)
 
 
