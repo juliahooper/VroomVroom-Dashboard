@@ -76,7 +76,8 @@ The app accepts connections from other machines when bound to `0.0.0.0` (Flask d
 | What | How |
 |------|-----|
 | HTTP health | `curl http://<host>:5000/health` → 200 |
-| REST CRUD (raw SQL) | `curl -X POST http://<host>:5000/snapshots` → 201; `curl http://<host>:5000/snapshots` → list |
+| REST CRUD (raw SQL) | `curl -X POST http://<host>:5000/snapshots` → 201; `curl http://<host>:5000/snapshots` → list; `curl http://<host>:5000/devices` → devices (paginated) |
+| Snapshots (filter/sort/page) | `curl "http://<host>:5000/snapshots?device_id=pc-01&limit=100&offset=0&sort=timestamp_desc"` → `{ "items", "total", "limit", "offset" }` |
 | REST CRUD (ORM) | `curl -X POST http://<host>:5000/orm/snapshots` → 201; `curl http://<host>:5000/orm/devices` → 200 |
 | Upload snapshot (JSON DTO) | `curl -X POST -H "Content-Type: application/json" -d '{"device_id":"pc-01","timestamp_utc":"2025-02-28T12:00:00Z","metrics":[...]}' http://<host>:5000/orm/upload_snapshot` → 201 |
 | TCP | Start `python -m src.tcp_server`, then `python -m src.tcp_client` (uses config for host/port) |
@@ -135,7 +136,7 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ## Architecture and features
 
-- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD: POST/GET/PUT/DELETE for snapshots and devices (raw SQL in `snapshots.py`; ORM in `orm_routes.py` under `/orm/snapshots`, `/orm/devices`). **POST /orm/upload_snapshot:** accepts JSON DTO (device_id, timestamp_utc, metrics), validates, persists via ORM in a transaction, returns structured JSON.
+- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD in `snapshots.py` and `orm_routes.py`. **Granular API:** GET /devices (sort, limit, offset); GET /snapshots (device_id filter, sort, limit, offset). Responses include `items`, `total`, `limit`, `offset` for pagination awareness. POST /orm/upload_snapshot accepts JSON DTO, validates, persists, returns structured JSON.
 - **Data model (four layers):** Database (normalized tables), ORM (`orm_models.py`), server domain (`datasnapshot/models.py`, `snapshots.py` view types), DTO (wire JSON). Timestamps UTC ISO 8601. See `docs/DATA_MODEL.md`.
 - **SQLite:** Normalised schema in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager`. See `docs/SCHEMA_DESIGN.md`.
 - **ORM:** SQLAlchemy models in `orm_models.py`; relationships and eager loading (joinedload/selectinload) in `orm_routes.py`.

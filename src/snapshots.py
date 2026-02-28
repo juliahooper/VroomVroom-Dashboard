@@ -1,7 +1,7 @@
 """
 RESTful CRUD for snapshots (raw SQL). Rows mapped to business objects; INNER/LEFT JOIN as needed.
 
-Endpoints: POST/GET /snapshots, GET /snapshots/<id>, PUT /devices/<id>, DELETE /snapshots/<id>.
+Endpoints: GET/POST /snapshots, GET /snapshots/<id>, GET /devices, PUT /devices/<id>, DELETE /snapshots/<id>.
 """
 from __future__ import annotations
 
@@ -247,40 +247,149 @@ def create_snapshot_endpoint():
 
 
 # ---------------------------------------------------------------------------
-# GET /snapshots  –  INNER JOIN + LEFT JOIN, mapped to SnapshotSummary list
+# GET /devices  –  list devices with filtering, sorting, pagination
 # ---------------------------------------------------------------------------
+
+# Allowed sort keys for GET /devices (column, direction) to avoid injection
+_DEVICE_SORT: dict[str, tuple[str, str]] = {
+    "id": ("id", "ASC"),
+    "id_desc": ("id", "DESC"),
+    "device_id": ("device_id", "ASC"),
+    "device_id_desc": ("device_id", "DESC"),
+    "first_seen": ("first_seen", "ASC"),
+    "first_seen_desc": ("first_seen", "DESC"),
+}
+
+
+@snapshots_bp.route("/devices", methods=["GET"])
+def list_devices():
+    """
+    GET /devices — list devices with optional sorting and pagination.
+
+    Query params: sort (id|id_desc|device_id|device_id_desc|first_seen|first_seen_desc),
+                  limit (default 50, max 200), offset (default 0).
+    Returns: { "items": [DeviceRecord, ...], "total": N, "limit": L, "offset": O }.
+    """
+    sort_key = request.args.get("sort", "id")
+    order_col, order_dir = _DEVICE_SORT.get(sort_key, _DEVICE_SORT["id"])
+    try:
+        limit = min(max(1, int(request.args.get("limit", 50))), 200)
+    except (ValueError, TypeError):
+        limit = 50
+    try:
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (ValueError, TypeError):
+        offset = 0
+
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM device").fetchone()[0]
+        rows = conn.execute(
+            f"""
+            SELECT id, device_id, label, first_seen
+            FROM device
+            ORDER BY {order_col} {order_dir}
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        ).fetchall()
+
+    items = [_row_to_device(r) for r in rows]
+    payload = {
+        "items": [asdict(d) for d in items],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+    logger.info("GET /devices – returning %d items (total=%d, limit=%d, offset=%d)", len(items), total, limit, offset)
+    return _json_response(payload, 200)
+
+
+# ---------------------------------------------------------------------------
+# GET /snapshots  –  filtering (device_id), sorting, pagination
+# ---------------------------------------------------------------------------
+
+# Allowed sort keys for GET /snapshots (ORDER BY clause fragment, safe)
+_SNAPSHOT_SORT: dict[str, str] = {
+    "id_desc": "s.id DESC",
+    "id_asc": "s.id ASC",
+    "timestamp_desc": "s.timestamp_utc DESC",
+    "timestamp_asc": "s.timestamp_utc ASC",
+}
+
 
 @snapshots_bp.route("/snapshots", methods=["GET"])
 def list_snapshots():
     """
-    GET /snapshots — return list of SnapshotSummary objects.
+    GET /snapshots — list SnapshotSummary with filtering, sorting, pagination.
 
-    INNER JOIN device: only snapshots that have a matching device appear.
-    LEFT JOIN snapshot_metric: snapshots with zero metrics still appear (count = 0).
-
-    Each row is mapped to a SnapshotSummary — no raw dicts returned to the caller.
+    Query params: device_id (filter by device), sort (id_desc|id_asc|timestamp_desc|timestamp_asc),
+                  limit (default 50, max 100), offset (default 0).
+    Returns: { "items": [SnapshotSummary, ...], "total": N, "limit": L, "offset": O }.
     """
-    with get_db() as conn:
-        rows = conn.execute(
-            """
-            SELECT s.id,
-                   d.device_id,
-                   s.timestamp_utc,
-                   COUNT(sm.metric_type_id) AS metric_count
-            FROM   snapshot        s
-            -- INNER JOIN: snapshot must have a device (FK enforces this anyway)
-            JOIN   device          d  ON d.id = s.device_id
-            -- LEFT JOIN: include snapshots that have no metrics yet (count = 0)
-            LEFT JOIN snapshot_metric sm ON sm.snapshot_id = s.id
-            GROUP  BY s.id
-            ORDER  BY s.id DESC
-            """
-        ).fetchall()
+    device_id_filter = request.args.get("device_id", "").strip()
+    sort_key = request.args.get("sort", "id_desc")
+    order_clause = _SNAPSHOT_SORT.get(sort_key, _SNAPSHOT_SORT["id_desc"])
+    try:
+        limit = min(max(1, int(request.args.get("limit", 50))), 100)
+    except (ValueError, TypeError):
+        limit = 50
+    try:
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (ValueError, TypeError):
+        offset = 0
 
-    # Map every row to a SnapshotSummary — the route never touches raw columns
+    with get_db() as conn:
+        if device_id_filter:
+            total_row = conn.execute(
+                """
+                SELECT COUNT(*) FROM snapshot s
+                JOIN device d ON d.id = s.device_id
+                WHERE d.device_id = ?
+                """,
+                (device_id_filter,),
+            ).fetchone()
+            total = total_row[0]
+            rows = conn.execute(
+                f"""
+                SELECT s.id, d.device_id, s.timestamp_utc, COUNT(sm.metric_type_id) AS metric_count
+                FROM   snapshot s
+                JOIN   device d ON d.id = s.device_id
+                LEFT JOIN snapshot_metric sm ON sm.snapshot_id = s.id
+                WHERE  d.device_id = ?
+                GROUP  BY s.id
+                ORDER  BY {order_clause}
+                LIMIT ? OFFSET ?
+                """,
+                (device_id_filter, limit, offset),
+            ).fetchall()
+        else:
+            total_row = conn.execute("SELECT COUNT(*) FROM snapshot").fetchone()
+            total = total_row[0]
+            rows = conn.execute(
+                f"""
+                SELECT s.id, d.device_id, s.timestamp_utc, COUNT(sm.metric_type_id) AS metric_count
+                FROM   snapshot s
+                JOIN   device d ON d.id = s.device_id
+                LEFT JOIN snapshot_metric sm ON sm.snapshot_id = s.id
+                GROUP  BY s.id
+                ORDER  BY {order_clause}
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+
     summaries = [_row_to_summary(r) for r in rows]
-    logger.info("GET /snapshots – returning %d summaries", len(summaries))
-    return _json_response([asdict(s) for s in summaries], 200)
+    payload = {
+        "items": [asdict(s) for s in summaries],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+    logger.info(
+        "GET /snapshots – returning %d items (total=%d, device_id=%r, limit=%d, offset=%d)",
+        len(summaries), total, device_id_filter or None, limit, offset,
+    )
+    return _json_response(payload, 200)
 
 
 # ---------------------------------------------------------------------------
