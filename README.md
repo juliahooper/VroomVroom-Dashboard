@@ -87,6 +87,16 @@ The app is **network-reachable** when run with `--bind 0.0.0.0` (gunicorn) or wh
 
 From another machine, use the VM IP (e.g. `http://200.69.13.70:5000/health`) instead of `127.0.0.1`.
 
+**Network troubleshooting basics:**
+
+| Check | Command / action |
+|-------|-------------------|
+| Is the host reachable? | `ping <host>` (ICMP); if blocked, try `curl` on the app port instead. |
+| Is the port open? | `curl -v http://<host>:5000/health` — connection refused = nothing listening or firewall. |
+| Firewall (VM) | `sudo ufw status`; allow port: `sudo ufw allow 5000/tcp` then `sudo ufw reload`. |
+| Binding | Server must listen on `0.0.0.0` (not `127.0.0.1`) to accept external connections. |
+| TCP client fails | Ensure TCP server is running first; check `server_host` and `server_port` in config. |
+
 ## Deploying to the VM
 
 ### VM details
@@ -160,6 +170,21 @@ http://200.69.13.70:5000/metrics
 - **Copy in SSH terminal:** Ctrl+Shift+C
 
 ---
+
+## Lecture 4 Compliance Checklist
+
+| Requirement | Where it is met | How to verify |
+|-------------|-----------------|---------------|
+| **Command line parameter parsing** | `src/main.py`: `argparse` for `--config` / `-c` (config file path). | `python -m src.main --help`; `python -m src.main --config config/config.json`. |
+| **Cloud deployment with WSGI awareness** | `wsgi.py` exposes `application` for gunicorn; README documents `gunicorn wsgi:application --bind 0.0.0.0:5000`. | Run `gunicorn wsgi:application --bind 0.0.0.0:5000 --workers 2`; open `/health` from another machine. |
+| **RESTful CRUD endpoints** | `snapshots.py`: POST/GET/PUT/DELETE for snapshots and devices. `orm_routes.py`: POST/GET for /orm/snapshots, GET /orm/devices. | `curl -X POST .../snapshots`, `curl .../snapshots`, `curl -X PUT .../devices/1`, `curl -X DELETE .../snapshots/1`. |
+| **SQLite normalised schema** | `src/database.py` (DDL); `docs/SCHEMA_DESIGN.md` (1NF/2NF/3NF, FKs, constraints). | Read SCHEMA_DESIGN.md; inspect `data/vroomvroom.db` with DB Browser. |
+| **Raw SQL usage** | `snapshots.py`: all CRUD uses `get_db()` and `conn.execute(...)` with raw SQL (INSERT, SELECT, UPDATE, DELETE, JOINs). | Grep for `conn.execute` in `snapshots.py`. |
+| **JOIN understanding** | `snapshots.py`: INNER JOIN device, LEFT JOIN snapshot_metric / metric_type; comments explain why (include snapshots with 0 metrics). | See GET /snapshots and GET /snapshots/<id> queries; `docs/SCHEMA_DESIGN.md` for relationships. |
+| **Parameterised queries** | All SQL in `snapshots.py` and `database.py` uses `?` placeholders; no string formatting of user input. | Grep for `?` in SQL strings; no f-strings or % in execute(). |
+| **ORM mapping awareness** | `orm_models.py`: Device, MetricType, Snapshot, SnapshotMetric map to tables; `orm_routes.py` uses relationships (joinedload, selectinload). | GET /orm/snapshots and /orm/devices return data from ORM objects. |
+| **ACID understanding** | **Atomicity:** `with conn:` in `database.py` and `snapshots.py` (commit on success, rollback on exception). **Consistency:** FKs and CHECK constraints; `PRAGMA foreign_keys = ON`. **Isolation:** SQLite default (serialized). **Durability:** SQLite WAL or default persistence. ORM: `get_session()` commits on exit, rollback on exception. | See `get_db()` / `get_session()` usage; `database.py` and `orm_models.py`. |
+| **Network troubleshooting basics** | README "Network connectivity" and "Network troubleshooting basics": ping/curl, firewall, bind address, TCP client/server config. | Follow the table in README to debug connectivity. |
 
 ## PoC 4.0 Definition of Done – checklist
 

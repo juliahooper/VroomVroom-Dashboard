@@ -6,9 +6,12 @@ metrics, build snapshot, serialise to JSON, verify integrity, then exit. See
 docs/EXECUTION_ORDER.md.
 
 Exit codes: 0 = success, 1 = unexpected error, 2 = config error, 3 = metrics error, 4/5 = JSON error.
+
+CLI: argparse for --config (config file path). Env VROOMVROOM_CONFIG overrides default if not passed.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
@@ -27,7 +30,23 @@ from .datasnapshot import (
 )
 
 
-def main() -> int:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments. Used by main() and testable with explicit argv."""
+    parser = argparse.ArgumentParser(
+        description="VroomVroom: read OS metrics, build snapshot, serialise to JSON and verify round-trip.",
+        prog="python -m src.main",
+    )
+    parser.add_argument(
+        "--config",
+        "-c",
+        type=str,
+        default=os.environ.get("VROOMVROOM_CONFIG", str(Path("config") / "config.json")),
+        help="Path to config JSON (default: config/config.json or VROOMVROOM_CONFIG)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
     """
     Main function.
     
@@ -40,12 +59,13 @@ def main() -> int:
         5: JSON integrity verification failure
     """
     logger = logging.getLogger(__name__)
-    
+    args = _parse_args(argv)
+
     # Log startup
     logger.info("Application starting up")
-    
-    # Load configuration
-    config_path = os.environ.get("VROOMVROOM_CONFIG", str(Path("config") / "config.json"))
+
+    # Load configuration (CLI --config takes precedence over env)
+    config_path = args.config
     try:
         logger.info(f"Loading configuration from: {config_path}")
         config = load_config(config_path)
@@ -157,5 +177,5 @@ def main() -> int:
 
 # Entry point: only run when this module is executed (e.g. python -m src.main),
 # not when imported. See docs/EXECUTION_ORDER.md.
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
