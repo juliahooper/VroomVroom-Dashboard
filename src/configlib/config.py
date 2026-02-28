@@ -1,21 +1,15 @@
 """
-Configuration management module.
+Configuration loading and validation.
 
-What this does: reads the app settings from a JSON file (e.g. config/config.json),
-checks that all required fields are present and valid, and returns an AppConfig object
-that the rest of the app uses. If something is missing or wrong we raise ConfigError.
+Reads app settings from a JSON file (e.g. config/config.json), checks that all
+required fields are present and valid, and returns an AppConfig object.
+Raises ConfigError if something is missing or wrong.
 """
-
-# Enables postponed evaluation of type annotations (PEP 563)
-# Allows using modern type syntax like str | Path without quotes
 from __future__ import annotations
-# Standard library for parsing and generating JSON data
+
 import json
-# Decorator that automatically generates __init__, __repr__, __eq__ methods for classes
 from dataclasses import dataclass
-# Object-oriented path handling for file system operations (replaces os.path)
 from pathlib import Path
-# Type hints: Any allows any type, Mapping is abstract base class for dict-like objects
 from typing import Any, Mapping
 
 
@@ -37,7 +31,7 @@ DEFAULT_SERVER_PORT = 54545
 DEFAULT_SERVER_HOST = "127.0.0.1"
 
 
-# Immutable dataclass representing All settings the app needs. Loaded once from JSON and passed around.
+# Immutable dataclass representing all settings the app needs. Loaded once from JSON and passed around.
 @dataclass(frozen=True)
 class AppConfig:
     app_name: str
@@ -63,7 +57,7 @@ _REQUIRED_TOP_LEVEL_KEYS = (
 # These keys must exist inside the danger_thresholds object in the JSON
 _REQUIRED_DANGER_KEYS = ("cpu_percent", "ram_percent", "disk_percent")
 
- # Helper to ensure a required key exists in a mapping, otherwise raise a ConfigError
+
 def _require_key(obj: Mapping[str, Any], key: str, *, context: str) -> Any:
     """If the key is missing we raise ConfigError; otherwise return its value."""
     if key not in obj:
@@ -78,7 +72,7 @@ def _require_int(obj: Mapping[str, Any], key: str, *, context: str) -> int:
         raise ConfigError(f"Key '{key}' in {context} must be an integer.")
     return value
 
-# Helper to ensure a required key exists and its value is a non-empty string, otherwise raise ConfigError
+
 def _require_str(obj: Mapping[str, Any], key: str, *, context: str) -> str:
     """Same as _require_key but we also check the value is a non-empty string."""
     value = _require_key(obj, key, context=context)

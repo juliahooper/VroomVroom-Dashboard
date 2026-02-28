@@ -1,9 +1,10 @@
 """
 Main entry point for the application.
 
-What this does: loads config, sets up logging to console and file, reads system
-metrics (CPU, RAM, disk), builds a snapshot with normal/warning/danger status,
-serialises it to JSON, then round-trips back to verify the JSON is correct.
+Execution order: main() runs top-to-bottom—load config, set up logging, read
+metrics, build snapshot, serialise to JSON, verify integrity, then exit. See
+docs/EXECUTION_ORDER.md.
+
 Exit codes: 0 = success, 1 = unexpected error, 2 = config error, 3 = metrics error, 4/5 = JSON error.
 """
 from __future__ import annotations
@@ -15,55 +16,15 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from .config import AppConfig, ConfigError, load_config
+from .configlib import AppConfig, ConfigError, load_config, setup_logging
 from .metrics_reader import MetricsError, read_metrics
-from .models import (
+from .datasnapshot import (
     Snapshot,
     create_snapshot,
     get_status_summary,
     snapshot_from_json,
     snapshot_to_json,
 )
-
-
-def setup_logging(config: AppConfig) -> None:
-    """
-    Set up logging so messages go to both the console and a log file.
-    Log level and file path come from config.
-    """
-    # Convert log level string to logging level constant
-    log_level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL,
-    }
-    log_level = log_level_map.get(config.log_level.upper(), logging.INFO)
-
-    log_path = Path(config.log_file_path)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    logger = logging.getLogger()
-    logger.setLevel(log_level)
-    logger.handlers.clear()
-
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # File handler
-    file_handler = logging.FileHandler(log_path, encoding='utf-8')
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
 
 def main() -> int:
@@ -194,5 +155,7 @@ def main() -> int:
         logging.shutdown()  # Flush and close all handlers for clean exit
 
 
+# Entry point: only run when this module is executed (e.g. python -m src.main),
+# not when imported. See docs/EXECUTION_ORDER.md.
 if __name__ == '__main__':
     sys.exit(main())
