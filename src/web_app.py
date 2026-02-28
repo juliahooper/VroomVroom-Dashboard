@@ -34,6 +34,8 @@ APP_CONFIG_KEY = "VROOMVROOM_APP_CONFIG"
 METRICS_CACHE_KEY = "METRICS_CACHE"
 # Default cache TTL in seconds (invalidation rule)
 CACHE_TTL_SECONDS = 30.0
+# Default web server port (override with VROOMVROOM_WEB_PORT)
+DEFAULT_WEB_PORT = 5000
 
 
 def create_app(config: AppConfig | None = None) -> Flask:
@@ -46,6 +48,13 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
 def register_routes(app: Flask) -> None:
     """Register all URL routes on the Flask app."""
+    # Register Snapshots CRUD blueprint – raw SQL (POST/GET/PUT/DELETE /snapshots)
+    from .snapshots import snapshots_bp
+    app.register_blueprint(snapshots_bp)
+
+    # Register ORM blueprint – SQLAlchemy (POST/GET /orm/snapshots, GET /orm/devices)
+    from .orm_routes import orm_bp
+    app.register_blueprint(orm_bp)
 
     @app.route("/hello")
     def hello() -> str:
@@ -135,11 +144,15 @@ def main() -> int:
     setup_logging(config)
     logger.info("Web server starting (config: %s)", config_path)
 
+    # Initialise the database (creates tables if they don't exist yet)
+    from .database import init_db
+    init_db()
+
     app = create_app(config)
     app.config[METRICS_CACHE_KEY] = MetricsCache(ttl_seconds=CACHE_TTL_SECONDS)
     register_routes(app)
 
-    port = int(os.environ.get("VROOMVROOM_WEB_PORT", "5000"))
+    port = int(os.environ.get("VROOMVROOM_WEB_PORT", str(DEFAULT_WEB_PORT)))
     logger.info("Listening on 0.0.0.0:%s", port)
     app.run(host="0.0.0.0", port=port, debug=False)
     return 0
