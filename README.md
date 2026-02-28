@@ -76,6 +76,12 @@ Optional: `VROOMVROOM_CONFIG` for config path; `VROOMVROOM_DB` for DB path.
   python scripts/verify_indexes.py --iterations 200
   ```
 
+- **Performance: scan vs search** (Step 2 – BlockTimer, O(n) vs O(log n)):
+
+  ```bash
+  python scripts/performance_scan_vs_search.py --iterations 500
+  ```
+
 **Local vs production:** `wsgi.py` loads config, logging, and `create_app()` the same way as `python -m src.web_app`, so gunicorn and the dev server behave identically.
 
 ## Network connectivity
@@ -310,7 +316,8 @@ VroomVroom-Dashboard/
 │   └── datasnapshot/
 ├── data/                      # vroomvroom.db (created at runtime)
 ├── scripts/
-│   └── verify_indexes.py      # EXPLAIN QUERY PLAN + query timing (index verification)
+│   ├── verify_indexes.py      # EXPLAIN QUERY PLAN + query timing (index verification)
+│   └── performance_scan_vs_search.py  # Step 2: scan vs search, BlockTimer, O(n) vs O(log n)
 ├── logs/
 └── README.md
 ```

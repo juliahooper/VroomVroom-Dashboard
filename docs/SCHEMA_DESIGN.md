@@ -146,6 +146,8 @@ Explicit indexes are created in `src/database.py` after the tables. SQLite does 
 
 **Already indexed:** `device.device_id` and `metric_type.name` (UNIQUE); all primary keys (id or composite). Use **EXPLAIN QUERY PLAN** and the script `scripts/verify_indexes.py` to confirm the planner uses these indexes and to compare query times.
 
+**Step 2 – Performance (scan vs search):** Run `scripts/performance_scan_vs_search.py` to compare the same query with and without `idx_snapshot_device_id`. With the index, the planner uses a B-tree **SEARCH** (O(log n)); without it, a full table **SCAN** (O(n)). BlockTimer logs the execution time for both; the script prints the ratio and explains why index lookups scale better as the table grows.
+
 ---
 
 ## 6. Summary
