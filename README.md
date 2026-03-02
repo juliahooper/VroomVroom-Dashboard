@@ -76,6 +76,40 @@ Optional env: `VROOMVROOM_CONFIG` (config path), `VROOMVROOM_DB` (DB path). Opti
 
 **Local vs production:** `wsgi.py` and `python -m src.web_app` load config and create the app the same way; gunicorn and the dev server behave identically.
 
+## Mobile data (Firestore)
+
+Metrics can be pulled from a Firestore backend (e.g. SwimScape) with **no hardcoded collection or field names**. Everything is driven by the optional `mobile` section in `config/config.json`. New services, devices, and metrics can be added by editing config only. Mobile data is also exposed as a **unified snapshot** (same `device_id` / `timestamp_utc` / `metrics` shape as PC snapshots) so the rest of CoC and dashboards can consume one format for all sources.
+
+### Enabling and configuring
+
+1. In `config/config.json`, add or edit the `mobile` block (see example below). Set `"enabled": true` when you want to use Firestore.
+2. **Credentials (Python backend):** Place your Firebase service account JSON file somewhere readable (e.g. `config/firebase-service-account.json`). Set either:
+   - `mobile.firebase_credentials_path` in config (e.g. `"config/firebase-service-account.json"`), or
+   - the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to that file path.
+3. **Collections:** Under `mobile.collections`, map logical keys to exact Firestore collection names. Use the names as they appear in the Firebase console (e.g. `water_temp` → `"water_temperature_readings"` if that is the full name).
+4. **Time-series metrics:** Each entry in `mobile.time_series_sources` defines one metric: `metric_id`, `collection_key` (must match a key in `collections`), `location_field`, `timestamp_field`, `value_fields` (array of field names to expose), and optional `limit`.
+5. **Count metrics:** Each entry in `mobile.count_sources` defines a count per location: `metric_id`, `collection_key`, `location_field`. Count is all-time unless you extend the collector later.
+
+To add a new time-series or count metric, add another object to `time_series_sources` or `count_sources` and ensure the referenced collection exists in `collections`. No code changes are required.
+
+### Endpoints (when mobile is enabled)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /mobile/locations` | List locations (id, name, county). |
+| `GET /mobile/metrics/latest?locationId=loc_lough_dan` | Latest time-series point, count metrics, and a **unified snapshot** (same shape as PC `/metrics`). |
+| `GET /mobile/metrics/history?locationId=loc_lough_dan&metricId=water_readings` | Time-series points for graphing (timestamp_millis, values). |
+| `GET /mobile/snapshot?locationId=loc_lough_dan` | **Unified snapshot only**: `device_id`, `timestamp_utc`, `metrics` (same as PC snapshots; `device_id` is `mobile:&lt;locationId&gt;`). Use this when the dashboard consumes one format for all sources. |
+
+### Firestore indexes
+
+If you see an error that a composite index is required, create it in the Firebase console (Firestore → Indexes). Typical indexes:
+
+- **Time-series query** (location + timestamp): collection = your time-series collection, fields: `location_field` (Ascending), `timestamp_field` (Ascending).
+- **Count query** (location only): no composite index needed for a single `where`; if you add ordering later, add an index with `location_field` and the order field.
+
+The error message in the logs will state the required fields; add those to the README for your project if needed.
+
 ## Network connectivity
 
 The app accepts connections from other machines when bound to `0.0.0.0` (Flask default here; gunicorn use `--bind 0.0.0.0:5000`).

@@ -22,10 +22,11 @@ import sys
 # Ensure the project root is on the Python path so 'src' is importable
 sys.path.insert(0, os.path.dirname(__file__))
 
-from src.configlib import ConfigError, load_config, setup_logging
+from src.configlib import ConfigError, load_config, load_mobile_config, setup_logging
 from src.metrics_cache import MetricsCache
+from src.mobile_collector import MobileDataCollector, init_firebase
+from src.mobile_routes import MOBILE_COLLECTOR_KEY, MOBILE_CONFIG_KEY
 from src.web_app import (
-    APP_CONFIG_KEY,
     CACHE_TTL_SECONDS,
     METRICS_CACHE_KEY,
     create_app,
@@ -51,7 +52,17 @@ os.environ["VROOMVROOM_SQL_ECHO"] = "1" if _config.sql_echo else "0"
 from src.database import init_db
 init_db()
 
-# Build the Flask app, attach config and cache, register routes
-application = create_app(_config)
+# Optional mobile (Firestore) config and collector
+_mobile_config = load_mobile_config(_config_path)
+if _mobile_config:
+    init_firebase(_mobile_config)
+    application = create_app(_config)
+    application.config[MOBILE_CONFIG_KEY] = _mobile_config
+    application.config[MOBILE_COLLECTOR_KEY] = MobileDataCollector(_mobile_config)
+else:
+    application = create_app(_config)
+    application.config[MOBILE_CONFIG_KEY] = None
+    application.config[MOBILE_COLLECTOR_KEY] = None
+
 application.config[METRICS_CACHE_KEY] = MetricsCache(ttl_seconds=CACHE_TTL_SECONDS)
 register_routes(application)
