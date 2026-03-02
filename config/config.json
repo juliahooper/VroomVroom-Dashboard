@@ -1,1 +1,37 @@
-{"app_name":"VroomVroom Monitor","device_id":"pc-01","read_interval_seconds":30,"log_level":"INFO","log_file_path":"logs/app.log","danger_thresholds":{"cpu_percent":80,"ram_percent":85,"disk_percent":90},"server_host":"127.0.0.1","server_port":54545,"sql_echo":false}
+{
+  "app_name": "VroomVroom Monitor",
+  "device_id": "pc-01",
+  "read_interval_seconds": 30,
+  "log_level": "INFO",
+  "log_file_path": "logs/app.log",
+  "danger_thresholds": { "cpu_percent": 80, "ram_percent": 85, "disk_percent": 90 },
+  "server_host": "127.0.0.1",
+  "server_port": 54545,
+  "sql_echo": false,
+  "mobile": {
+    "enabled": false,
+    "firebase_credentials_path": "config/firebase-service-account.json",
+    "collections": {
+      "locations": "locations",
+      "safety_alerts": "safety_alerts",
+      "water_temp": "water_temperature_readings"
+    },
+    "time_series_sources": [
+      {
+        "metric_id": "water_readings",
+        "collection_key": "water_temp",
+        "location_field": "location_id",
+        "timestamp_field": "timestamp",
+        "value_fields": ["risk_score", "water_temp"],
+        "limit": 200
+      }
+    ],
+    "count_sources": [
+      {
+        "metric_id": "alerts_count",
+        "collection_key": "safety_alerts",
+        "location_field": "location_id"
+      }
+    ]
+  }
+}

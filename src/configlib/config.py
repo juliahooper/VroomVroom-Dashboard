@@ -64,6 +64,49 @@ _REQUIRED_TOP_LEVEL_KEYS = (
 _REQUIRED_DANGER_KEYS = ("cpu_percent", "ram_percent", "disk_percent")
 
 
+# ---------------------------------------------------------------------------
+# Optional mobile (Firebase/Firestore) config – flexible data flow
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class TimeSeriesSource:
+    """One time-series metric source: collection + field mapping. Add new metrics by adding entries in config."""
+    metric_id: str
+    collection_key: str  # key into mobile.collections
+    location_field: str
+    timestamp_field: str
+    value_fields: tuple[str, ...]  # Firestore field names to expose (e.g. risk_score, water_temp)
+    limit: int
+
+
+@dataclass(frozen=True)
+class CountSource:
+    """One count metric source (e.g. alerts per location). Add new count metrics by adding entries in config."""
+    metric_id: str
+    collection_key: str
+    location_field: str
+
+
+@dataclass(frozen=True)
+class MobileConfig:
+    """
+    Mobile data source config (Firestore). All collection names and metric definitions
+    come from config so new services/devices/metrics can be added without code changes.
+    """
+    enabled: bool
+    firebase_credentials_path: str | None  # None = use GOOGLE_APPLICATION_CREDENTIALS env
+    collections: tuple[tuple[str, str], ...]  # (logical_key, firestore_collection_name)
+    time_series_sources: tuple[TimeSeriesSource, ...]
+    count_sources: tuple[CountSource, ...]
+
+    def collection_name(self, logical_key: str) -> str | None:
+        """Resolve logical key (e.g. 'water_temp') to Firestore collection name."""
+        for k, v in self.collections:
+            if k == logical_key:
+                return v
+        return None
+
+
 def _require_key(obj: Mapping[str, Any], key: str, *, context: str) -> Any:
     """If the key is missing we raise ConfigError; otherwise return its value."""
     if key not in obj:
@@ -156,3 +199,92 @@ def load_config(config_path: str | Path) -> AppConfig:
         raise ConfigError("Key 'read_interval_seconds' must be > 0.")
 
     return cfg
+
+
+def load_mobile_config(config_path: str | Path) -> MobileConfig | None:
+    """
+    Load optional mobile (Firebase/Firestore) config from the same config file.
+    Returns None if "mobile" is missing or mobile.enabled is false.
+    Raises ConfigError if "mobile" is present but invalid.
+    """
+    path = Path(config_path)
+    try:
+        raw_text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        raise ConfigError(f"Unable to read config file at '{path}': {e}") from e
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ConfigError(f"Invalid JSON in config file '{path}': {e}") from e
+    if not isinstance(data, dict):
+        raise ConfigError(f"Config root must be a JSON object in '{path}'.")
+
+    mobile = data.get("mobile")
+    if mobile is None:
+        return None
+    if not isinstance(mobile, dict):
+        raise ConfigError("Key 'mobile' must be an object.")
+
+    enabled = mobile.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigError("Key 'mobile.enabled' must be a boolean.")
+    if not enabled:
+        return None
+
+    creds_path = mobile.get("firebase_credentials_path")
+    if creds_path is not None and not (isinstance(creds_path, str) and creds_path.strip()):
+        raise ConfigError("Key 'mobile.firebase_credentials_path' must be a non-empty string or omitted.")
+
+    collections_raw = mobile.get("collections")
+    if not isinstance(collections_raw, dict):
+        raise ConfigError("Key 'mobile.collections' must be an object (logical_key -> Firestore collection name).")
+    collections = tuple((k, str(v).strip()) for k, v in collections_raw.items() if v)
+    if not collections:
+        raise ConfigError("Key 'mobile.collections' must have at least one entry.")
+
+    time_series_raw = mobile.get("time_series_sources", [])
+    if not isinstance(time_series_raw, list):
+        raise ConfigError("Key 'mobile.time_series_sources' must be an array.")
+    time_series_sources: list[TimeSeriesSource] = []
+    for i, entry in enumerate(time_series_raw):
+        if not isinstance(entry, dict):
+            raise ConfigError(f"mobile.time_series_sources[{i}] must be an object.")
+        metric_id = _require_str(entry, "metric_id", context=f"mobile.time_series_sources[{i}]")
+        collection_key = _require_str(entry, "collection_key", context=f"mobile.time_series_sources[{i}]")
+        location_field = _require_str(entry, "location_field", context=f"mobile.time_series_sources[{i}]")
+        timestamp_field = _require_str(entry, "timestamp_field", context=f"mobile.time_series_sources[{i}]")
+        vf = entry.get("value_fields")
+        if not isinstance(vf, list) or not all(isinstance(x, str) for x in vf):
+            raise ConfigError(f"mobile.time_series_sources[{i}].value_fields must be an array of strings.")
+        value_fields = tuple(vf)
+        limit = entry.get("limit", 200)
+        if type(limit) is not int or limit < 1:
+            raise ConfigError(f"mobile.time_series_sources[{i}].limit must be a positive integer.")
+        time_series_sources.append(TimeSeriesSource(
+            metric_id=metric_id,
+            collection_key=collection_key,
+            location_field=location_field,
+            timestamp_field=timestamp_field,
+            value_fields=value_fields,
+            limit=limit,
+        ))
+
+    count_raw = mobile.get("count_sources", [])
+    if not isinstance(count_raw, list):
+        raise ConfigError("Key 'mobile.count_sources' must be an array.")
+    count_sources: list[CountSource] = []
+    for i, entry in enumerate(count_raw):
+        if not isinstance(entry, dict):
+            raise ConfigError(f"mobile.count_sources[{i}] must be an object.")
+        metric_id = _require_str(entry, "metric_id", context=f"mobile.count_sources[{i}]")
+        collection_key = _require_str(entry, "collection_key", context=f"mobile.count_sources[{i}]")
+        location_field = _require_str(entry, "location_field", context=f"mobile.count_sources[{i}]")
+        count_sources.append(CountSource(metric_id=metric_id, collection_key=collection_key, location_field=location_field))
+
+    return MobileConfig(
+        enabled=True,
+        firebase_credentials_path=creds_path.strip() if creds_path else None,
+        collections=collections,
+        time_series_sources=tuple(time_series_sources),
+        count_sources=tuple(count_sources),
+    )

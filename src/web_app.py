@@ -21,7 +21,7 @@ from pathlib import Path
 from flask import Flask, current_app
 
 from .blocktimer import BlockTimer
-from .configlib import AppConfig, ConfigError, load_config, setup_logging
+from .configlib import AppConfig, ConfigError, load_config, load_mobile_config, setup_logging
 from .datasnapshot import create_snapshot
 from .metrics_cache import MetricsCache
 from .metrics_reader import MetricsError, read_metrics
@@ -55,6 +55,10 @@ def register_routes(app: Flask) -> None:
     # Register ORM blueprint – SQLAlchemy (POST/GET /orm/snapshots, GET /orm/devices)
     from .orm_routes import orm_bp
     app.register_blueprint(orm_bp)
+
+    # Register mobile blueprint – Firestore metrics (config-driven)
+    from .mobile_routes import mobile_bp
+    app.register_blueprint(mobile_bp)
 
     @app.route("/hello")
     def hello() -> str:
@@ -151,7 +155,20 @@ def main() -> int:
     from .database import init_db
     init_db()
 
-    app = create_app(config)
+    # Optional mobile (Firestore) config and collector
+    from .mobile_collector import MobileDataCollector, init_firebase
+    from .mobile_routes import MOBILE_COLLECTOR_KEY, MOBILE_CONFIG_KEY
+    mobile_config = load_mobile_config(config_path)
+    if mobile_config:
+        init_firebase(mobile_config)
+        app = create_app(config)
+        app.config[MOBILE_CONFIG_KEY] = mobile_config
+        app.config[MOBILE_COLLECTOR_KEY] = MobileDataCollector(mobile_config)
+    else:
+        app = create_app(config)
+        app.config[MOBILE_CONFIG_KEY] = None
+        app.config[MOBILE_COLLECTOR_KEY] = None
+
     app.config[METRICS_CACHE_KEY] = MetricsCache(ttl_seconds=CACHE_TTL_SECONDS)
     register_routes(app)
 
