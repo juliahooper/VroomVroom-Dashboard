@@ -85,9 +85,9 @@ def create_snapshot(
 
     # Define metric metadata
     metric_configs = {
-        'cpu_percent': {'name': 'CPU Usage', 'unit': '%'},
-        'ram_percent': {'name': 'RAM Usage', 'unit': '%'},
-        'disk_percent': {'name': 'Disk Usage', 'unit': '%'},
+        "thread_count": {"name": "Running Threads", "unit": "count"},
+        "ram_percent": {"name": "RAM Usage", "unit": "%"},
+        "disk_read_mb_s": {"name": "Disk Read Speed", "unit": "MB/s"},
     }
 
     for metric_key, metric_value in metrics_dict.items():
@@ -99,10 +99,10 @@ def create_snapshot(
                 danger_threshold=danger_threshold,
             )
             metric = Metric(
-                name=config['name'],
+                name=config["name"],
                 value=metric_value,
-                unit=config['unit'],
-                status=status
+                unit=config["unit"],
+                status=status,
             )
             metric_list.append(metric)
 
