@@ -1,5 +1,4 @@
 # pip install -r requirements.txt
-# psutil, flask, gunicorn, sqlalchemy, requests (YouTube API), python-dotenv (.env)
 psutil>=5.9.0
 flask>=3.0.0
 gunicorn>=21.0.0
