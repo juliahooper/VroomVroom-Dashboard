@@ -18,9 +18,15 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 # Ensure the project root is on the Python path so 'src' is importable
-sys.path.insert(0, os.path.dirname(__file__))
+_project_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(_project_root))
+
+# Load .env from project root (e.g. YOUTUBE_API_KEY) before any app code uses env vars
+from dotenv import load_dotenv
+load_dotenv(_project_root / ".env")
 
 from src.configlib import ConfigError, load_config, load_mobile_config, setup_logging
 from src.metrics_cache import MetricsCache

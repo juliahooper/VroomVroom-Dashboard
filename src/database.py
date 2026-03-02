@@ -82,7 +82,9 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
 """
 
 # The three standard metric types – inserted once when the DB is first created.
+# total_streams: YouTube view count for Vroom Vroom (stored per snapshot).
 _SEED_METRIC_TYPES = [
+    ("total_streams", "count"),
     ("Running Threads", "count"),
     ("RAM Usage", "%"),
     ("Disk Read Speed", "MB/s"),
