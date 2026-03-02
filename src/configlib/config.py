@@ -18,12 +18,12 @@ class ConfigError(Exception):
     pass
 
 
-# Percentages above which we consider CPU, RAM, or disk "in danger"
+# Thresholds above which we consider metrics "in danger"
 @dataclass(frozen=True)
 class DangerThresholds:
-    cpu_percent: int
+    thread_count: int
     ram_percent: int
-    disk_percent: int
+    disk_read_mb_s: int
 
 
 # Defaults for optional TCP settings (used when not in config JSON)
@@ -33,7 +33,7 @@ DEFAULT_SERVER_HOST = "127.0.0.1"
 # Fallbacks when the Flask app has no config (e.g. test or import-time). Not for production.
 # Use these instead of hardcoding thresholds or device_id in routes.
 FALLBACK_DEVICE_ID = "unknown"
-FALLBACK_THRESHOLDS = {"cpu_percent": 80, "ram_percent": 85, "disk_percent": 90}
+FALLBACK_THRESHOLDS = {"thread_count": 300, "ram_percent": 85, "disk_read_mb_s": 50}
 
 
 # Immutable dataclass representing all settings the app needs. Loaded once from JSON and passed around.
@@ -61,7 +61,7 @@ _REQUIRED_TOP_LEVEL_KEYS = (
 )
 
 # These keys must exist inside the danger_thresholds object in the JSON
-_REQUIRED_DANGER_KEYS = ("cpu_percent", "ram_percent", "disk_percent")
+_REQUIRED_DANGER_KEYS = ("thread_count", "ram_percent", "disk_read_mb_s")
 
 
 def _require_key(obj: Mapping[str, Any], key: str, *, context: str) -> Any:
@@ -113,7 +113,7 @@ def load_config(config_path: str | Path) -> AppConfig:
     for key in _REQUIRED_TOP_LEVEL_KEYS:
         _require_key(data, key, context="config root")
 
-    # danger_thresholds must be an object with cpu_percent, ram_percent, disk_percent
+    # danger_thresholds must be an object with thread_count, ram_percent, disk_read_mb_s
     danger = _require_key(data, "danger_thresholds", context="config root")
     if not isinstance(danger, dict):
         raise ConfigError("Key 'danger_thresholds' must be an object in config root.")
@@ -142,9 +142,9 @@ def load_config(config_path: str | Path) -> AppConfig:
         log_level=_require_str(data, "log_level", context="config root"),
         log_file_path=_require_str(data, "log_file_path", context="config root"),
         danger_thresholds=DangerThresholds(
-            cpu_percent=_require_int(danger, "cpu_percent", context="danger_thresholds"),
+            thread_count=_require_int(danger, "thread_count", context="danger_thresholds"),
             ram_percent=_require_int(danger, "ram_percent", context="danger_thresholds"),
-            disk_percent=_require_int(danger, "disk_percent", context="danger_thresholds"),
+            disk_read_mb_s=_require_int(danger, "disk_read_mb_s", context="danger_thresholds"),
         ),
         server_port=server_port,
         server_host=server_host.strip(),

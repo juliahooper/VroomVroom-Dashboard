@@ -83,9 +83,9 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
 
 # The three standard metric types – inserted once when the DB is first created.
 _SEED_METRIC_TYPES = [
-    ("CPU Usage",  "%"),
-    ("RAM Usage",  "%"),
-    ("Disk Usage", "%"),
+    ("Running Threads", "count"),
+    ("RAM Usage", "%"),
+    ("Disk Read Speed", "MB/s"),
 ]
 
 
