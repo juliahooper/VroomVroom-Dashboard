@@ -4,7 +4,7 @@ PoC monitor: reads OS metrics, builds a structured snapshot, and serialises to J
 
 ## Requirements
 
-Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (web app), **gunicorn** (production WSGI), **sqlalchemy** (ORM). Install once in a venv.
+Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (web app), **gunicorn** (production WSGI), **sqlalchemy** (ORM), **requests** (YouTube API), **python-dotenv** (.env loading). Install once in a venv.
 
 ## Setup
 
@@ -24,6 +24,17 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
    ```bash
    pip install -r requirements.txt
    ```
+
+4. **Configuring the YouTube API (.env)** — required only if you use `/youtube/vroom-vroom`:
+
+   - In the project root there is a file **`.env.example`**. Copy it to a new file named **`.env`** (same folder as `.env.example`).
+   - One teammate with access to the YouTube Data API v3 key should share it securely (e.g. team chat or password manager). Each developer then pastes the key into their own **`.env`** file:
+     ```bash
+     # .env (do not commit this file — it is in .gitignore)
+     YOUTUBE_API_KEY=your_actual_key_here
+     ```
+   - The app loads `.env` automatically when you run `python -m src.web_app` or `gunicorn wsgi:application`, so you do **not** need to set `YOUTUBE_API_KEY` in the terminal each time.
+   - **Important:** Never commit `.env` or put the real key in `.env.example`. The repo already ignores `.env`; only the variable names live in `.env.example` for reference.
 
 ## How to run
 
@@ -64,7 +75,7 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
   python -m src.web_app
   ```
 
-  Then open `http://127.0.0.1:5000/hello`, `/health`, or `/metrics`.
+  Then open `http://127.0.0.1:5000/hello`, `/health`, `/metrics`, or `/youtube/vroom-vroom`.
 
 - **Web app — production** (e.g. on VM):
 
@@ -72,7 +83,7 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
   gunicorn wsgi:application --bind 0.0.0.0:5000 --workers 2
   ```
 
-Optional env: `VROOMVROOM_CONFIG` (config path), `VROOMVROOM_DB` (DB path). Optional: `"sql_echo": true` in config for SQLAlchemy SQL logging.
+Optional env: `VROOMVROOM_CONFIG` (config path), `VROOMVROOM_DB` (DB path). Optional: `"sql_echo": true` in config for SQLAlchemy SQL logging. For **YouTube Vroom Vroom**: use a `.env` file (see “Configuring the YouTube API (.env)” above); you can also set `YOUTUBE_API_KEY` or `YOUTUBE_VIDEO_ID` in the shell if you prefer.
 
 **Local vs production:** `wsgi.py` and `python -m src.web_app` load config and create the app the same way; gunicorn and the dev server behave identically.
 
@@ -87,6 +98,7 @@ The app accepts connections from other machines when bound to `0.0.0.0` (Flask d
 | Snapshots (filter/sort/page) | `curl "http://<host>:5000/snapshots?device_id=pc-01&limit=100&offset=0&sort=timestamp_desc"` → `{ "items", "total", "limit", "offset" }` |
 | REST CRUD (ORM) | `curl -X POST http://<host>:5000/orm/snapshots` → 201; `curl http://<host>:5000/orm/devices` → 200 |
 | Upload snapshot (JSON DTO) | `curl -X POST -H "Content-Type: application/json" -d '{"device_id":"pc-01","timestamp_utc":"2025-02-28T12:00:00Z","metrics":[...]}' http://<host>:5000/orm/upload_snapshot` → 201 |
+| YouTube Vroom Vroom (on-demand) | Configure `.env` with `YOUTUBE_API_KEY` (see Setup); `curl http://<host>:5000/youtube/vroom-vroom` → 200 with `timestamp_utc`, `total_streams`, `metrics` (and stores a snapshot) |
 | TCP | Start `python -m src.tcp_server`, then `python -m src.tcp_client` (uses config for host/port) |
 
 **Troubleshooting:** `curl -v http://<host>:5000/health` — connection refused means nothing listening or firewall. Server must listen on `0.0.0.0` for external access. On VM: `sudo ufw allow 5000/tcp` then `sudo ufw reload` if needed.
@@ -135,7 +147,7 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ### Test in browser
 
-`http://200.69.13.70:5000/hello` · `http://200.69.13.70:5000/health` · `http://200.69.13.70:5000/metrics`
+`http://200.69.13.70:5000/hello` · `http://200.69.13.70:5000/health` · `http://200.69.13.70:5000/metrics` · `http://200.69.13.70:5000/youtube/vroom-vroom` (requires `YOUTUBE_API_KEY` on the server)
 
 **Terminal tips:** Paste in SSH: Ctrl+Shift+V. Copy: Ctrl+Shift+C.
 
@@ -143,7 +155,7 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ## Architecture and features
 
-- **Flask web app:** `/hello`, `/health`, `/metrics` (cached). REST CRUD in `snapshots.py` and `orm_routes.py`. **Granular API:** GET /devices (sort, limit, offset); GET /snapshots (device_id filter, sort, limit, offset). POST /orm/upload_snapshot accepts JSON DTO, validates, persists. API design (bulk vs granular, versioning, security, client/server trade-offs): `docs/API_DESIGN.md`.
+- **Flask web app:** `/hello`, `/health`, `/metrics` (cached), `/youtube/vroom-vroom` (on-demand: fetch view count, store snapshot, return JSON). REST CRUD in `snapshots.py` and `orm_routes.py`. **Granular API:** GET /devices (sort, limit, offset); GET /snapshots (device_id filter, sort, limit, offset). POST /orm/upload_snapshot accepts JSON DTO, validates, persists. API design (bulk vs granular, versioning, security, client/server trade-offs): `docs/API_DESIGN.md`.
 - **Data model (four layers):** Database (normalized tables), ORM (`orm_models.py`), server domain (`datasnapshot/models.py`, `snapshots.py` view types), DTO (wire JSON). Timestamps UTC ISO 8601. See `docs/DATA_MODEL.md`.
 - **SQLite:** Normalised schema in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager`. See `docs/SCHEMA_DESIGN.md`.
 - **ORM:** SQLAlchemy models in `orm_models.py`; relationships and eager loading (joinedload/selectinload) in `orm_routes.py`.
@@ -156,6 +168,7 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 ```
 VroomVroom-Dashboard/
 ├── config/config.json
+├── .env.example               # Copy to .env and add YOUTUBE_API_KEY (see Setup)
 ├── requirements.txt
 ├── wsgi.py                    # Gunicorn entry point
 ├── docs/
@@ -166,8 +179,9 @@ VroomVroom-Dashboard/
 ├── src/
 │   ├── main.py                # CLI (-c, -a/--agent, -i/--interval), metrics pipeline
 │   ├── collector_agent.py     # Long-running agent: loop, upload API, retry, graceful shutdown
-│   ├── web_app.py             # Flask app, routes, /hello, /health, /metrics
-│   ├── database.py             # SQLite schema, get_db(), init_db(), TransactionManager
+│   ├── web_app.py             # Flask app, routes, /hello, /health, /metrics, /youtube/vroom-vroom
+│   ├── youtube_fetcher.py     # YouTube Data API v3 view count (YOUTUBE_API_KEY)
+│   ├── database.py            # SQLite schema, get_db(), init_db(), TransactionManager
 │   ├── snapshots.py           # Raw SQL CRUD (snapshots, devices)
 │   ├── orm_models.py          # SQLAlchemy models
 │   ├── orm_dto.py             # ORM ↔ DTO mapping (to_dict/from_dict, datetime/UUID)

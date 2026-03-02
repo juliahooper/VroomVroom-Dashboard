@@ -5,6 +5,7 @@ At entry point: initialise config, initialise logging, register routes, then run
 - GET /hello   → returns the text "Hello World"
 - GET /health  → returns "OK" and status 200
 - GET /metrics → returns JSON (cached with TTL; one thread updates, others serve cache).
+- GET /youtube/vroom-vroom → fetches current view count from YouTube API, stores snapshot, returns JSON (on-demand).
 
 Run: python -m src.web_app  (or gunicorn for production).
 """
@@ -120,6 +121,55 @@ def register_routes(app: Flask) -> None:
 
             return _json_response(response_obj, 200)
 
+    @app.route("/youtube/vroom-vroom")
+    def youtube_vroom_vroom():
+        """
+        GET /youtube/vroom-vroom: fetch current view count from YouTube Data API v3,
+        store as a snapshot (device youtube-vroom-vroom, metric total_streams), return JSON.
+        On-demand only; requires YOUTUBE_API_KEY environment variable.
+        """
+        from .orm_dto import snapshot_from_dto
+        from .orm_models import get_session
+        from .youtube_fetcher import YouTubeFetcherError, get_view_count
+
+        try:
+            view_count = get_view_count()
+        except YouTubeFetcherError as e:
+            logger.warning("YouTube fetch failed: %s", e)
+            return _json_response({"error": str(e)}, 503)
+
+        timestamp_utc = datetime.now(timezone.utc)
+        dto = {
+            "device_id": "youtube-vroom-vroom",
+            "timestamp_utc": timestamp_utc.isoformat(),
+            "metrics": [
+                {
+                    "name": "total_streams",
+                    "value": float(view_count),
+                    "unit": "count",
+                    "status": "normal",
+                }
+            ],
+        }
+        try:
+            with get_session() as session:
+                snapshot = snapshot_from_dto(dto, session)
+                # Build response in same spirit as /metrics
+                response_obj = {
+                    "timestamp_utc": timestamp_utc.isoformat(),
+                    "device_id": "youtube-vroom-vroom",
+                    "total_streams": view_count,
+                    "snapshot_id": snapshot.id,
+                    "metrics": [
+                        {"name": "total_streams", "value": view_count, "unit": "count", "status": "normal"}
+                    ],
+                }
+        except Exception as e:
+            logger.exception("Failed to persist YouTube snapshot")
+            return _json_response({"error": f"Failed to store snapshot: {e}"}, 500)
+
+        return _json_response(response_obj, 200)
+
 
 def _json_response(obj: dict, status: int) -> tuple[str, int, dict]:
     """Return a JSON-serialised response with application/json content type."""
@@ -132,6 +182,11 @@ def main() -> int:
     After app.run(), the process responds to HTTP events; startup code is not re-run.
     See docs/EXECUTION_ORDER.md. Returns 0 on success, 2 on config error.
     """
+    # Load .env from project root so YOUTUBE_API_KEY (and optional overrides) are set
+    from dotenv import load_dotenv
+    _project_root = Path(__file__).resolve().parent.parent
+    load_dotenv(_project_root / ".env")
+
     config_path = os.environ.get(
         "VROOMVROOM_CONFIG", str(Path("config") / "config.json")
     )
