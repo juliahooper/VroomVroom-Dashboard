@@ -13,16 +13,14 @@ from datetime import datetime, timezone
 from .datasnapshot import Metric, Snapshot
 from .mobile_models import CountResult, TimeSeriesPoint
 
-# Default display names and units for known fields (config-driven value_fields
-# not listed here get a title-cased name and empty unit).
+# Display names and units must match metric_type names in the DB for uploads.
 _DISPLAY: dict[str, tuple[str, str]] = {
-    "risk_score": ("Risk score", ""),
-    "water_temp": ("Water temp", "°C"),
+    "risk_score": ("Risk Score", "value"),
+    "water_temp": ("Water Temp", "°C"),
 }
 
-# Default display names for count metric_ids.
 _COUNT_DISPLAY: dict[str, tuple[str, str]] = {
-    "alerts_count": ("Alerts count", ""),
+    "alerts_count": ("Alerts Count", "count"),
 }
 
 # Mobile snapshots use this prefix so device_id distinguishes source (e.g. mobile:loc_lough_dan).

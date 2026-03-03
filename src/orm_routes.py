@@ -7,6 +7,8 @@ ORM ↔ DTO mapping via orm_dto (to_dict/from_dict style).
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from dataclasses import asdict
 
 from flask import Blueprint, request
@@ -24,9 +26,16 @@ from .orm_dto import (
     validate_snapshot_upload_dto,
 )
 from .orm_models import Device, Snapshot, SnapshotMetric, get_session
+from .snapshot_backup import append_backup, append_failed
 from .web_app import _json_response
 
 logger = logging.getLogger(__name__)
+
+# Retries and backup: persist up to 3 times; on failure log to failed_snapshots.jsonl for replay
+_UPLOAD_RETRY_ATTEMPTS = 3
+_UPLOAD_RETRY_DELAY_SEC = 0.5
+# Serialize snapshot writes per process so concurrent POSTs don't hit SQLite at once (no queue server)
+_upload_lock = threading.Lock()
 
 orm_bp = Blueprint("orm", __name__, url_prefix="/orm")
 
@@ -110,17 +119,26 @@ def upload_snapshot():
     except ValueError as e:
         return _json_response({"error": str(e)}, 400)
 
-    try:
-        with get_session() as session:
-            snapshot = snapshot_from_dto(dto, session)
-            summary = snapshot_to_summary_dto(snapshot)
-            summary["uploaded"] = True
-    except Exception as e:
-        logger.exception("POST /orm/upload_snapshot – persist failed")
-        return _json_response({"error": f"Failed to persist snapshot: {e}"}, 500)
+    last_error = None
+    for attempt in range(1, _UPLOAD_RETRY_ATTEMPTS + 1):
+        try:
+            with _upload_lock:
+                with get_session() as session:
+                    snapshot = snapshot_from_dto(dto, session)
+                    summary = snapshot_to_summary_dto(snapshot)
+                    summary["uploaded"] = True
+                append_backup(dto)
+            logger.info("POST /orm/upload_snapshot – stored id=%d device=%s", summary["id"], summary["device_id"])
+            return _json_response(summary, 201)
+        except Exception as e:
+            last_error = e
+            logger.warning("POST /orm/upload_snapshot – attempt %d/%d failed: %s", attempt, _UPLOAD_RETRY_ATTEMPTS, e)
+            if attempt < _UPLOAD_RETRY_ATTEMPTS:
+                time.sleep(_UPLOAD_RETRY_DELAY_SEC)
 
-    logger.info("POST /orm/upload_snapshot – stored id=%d device=%s", summary["id"], summary["device_id"])
-    return _json_response(summary, 201)
+    append_failed(dto, str(last_error))
+    logger.exception("POST /orm/upload_snapshot – persist failed after %d attempts", _UPLOAD_RETRY_ATTEMPTS)
+    return _json_response({"error": f"Failed to persist snapshot: {last_error}"}, 500)
 
 
 # ---------------------------------------------------------------------------

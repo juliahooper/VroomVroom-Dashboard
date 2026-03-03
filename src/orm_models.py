@@ -35,8 +35,14 @@ _DB_PATH: str = os.environ.get("VROOMVROOM_DB", _DEFAULT_DB_PATH)
 # Step 5 – enable SQL logging to inspect generated queries (set VROOMVROOM_SQL_ECHO=1)
 _SQL_ECHO = os.environ.get("VROOMVROOM_SQL_ECHO", "").lower() in ("1", "true", "yes")
 
+# SQLite: timeout so concurrent writers wait instead of failing with BUSY (seconds)
+_SQLITE_TIMEOUT = 15
 # SQLAlchemy engine – connects to the same SQLite file as raw SQL
-_engine = create_engine(f"sqlite:///{_DB_PATH}", echo=_SQL_ECHO)
+_engine = create_engine(
+    f"sqlite:///{_DB_PATH}",
+    echo=_SQL_ECHO,
+    connect_args={"timeout": _SQLITE_TIMEOUT},
+)
 
 # Enable foreign key enforcement for every SQLite connection opened by the engine
 @event.listens_for(_engine, "connect")

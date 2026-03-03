@@ -184,8 +184,9 @@ def get_db() -> Iterator[sqlite3.Connection]:
         - row_factory = sqlite3.Row so columns can be accessed by name: row["id"].
         - For explicit transaction boundaries use TransactionManager(conn): BEGIN on enter,
           COMMIT on success, ROLLBACK on exception.
+        - timeout=15 so concurrent writers wait for the lock instead of failing with BUSY.
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     try:

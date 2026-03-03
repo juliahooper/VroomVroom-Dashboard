@@ -201,37 +201,64 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ```
 VroomVroom-Dashboard/
-├── config/config.json
+├── config/
+│   └── config.json
 ├── .env.example               # Copy to .env and add YOUTUBE_API_KEY (see Setup)
 ├── requirements.txt
 ├── wsgi.py                    # Gunicorn entry point
 ├── docs/
-│   ├── API_DESIGN.md          # Bulk vs granular, versioning, security, client/server trade-offs
-│   ├── DATA_MODEL.md          # Four layers: DB, ORM, domain, DTO; UTC & UUID
+│   ├── README.md              # Docs index
+│   ├── API_DESIGN.md
+│   ├── BACKUP_AND_FAILED_REPLAY.md   # Backup log, retries, concurrent writes, replay script
+│   ├── DATA_MODEL.md
 │   ├── EXECUTION_ORDER.md
+│   ├── ONE_DATABASE_AND_FRONTEND.md   # One DB for PC, YouTube, mobile; front-end APIs
 │   └── SCHEMA_DESIGN.md
 ├── src/
-│   ├── main.py                # CLI (-c, -a/--agent, -i/--interval), metrics pipeline
-│   ├── collector_agent.py     # Long-running agent: loop, upload API, retry, graceful shutdown
+│   ├── main.py                # CLI (-c, -a/--agent, -i/--interval)
 │   ├── web_app.py             # Flask app, routes, /hello, /health, /metrics, /youtube/vroom-vroom
-│   ├── youtube_fetcher.py     # YouTube Data API v3 view count (YOUTUBE_API_KEY)
+│   ├── collector_agent.py     # Long-running PC collector: loop, upload API, retry
 │   ├── database.py            # SQLite schema, get_db(), init_db(), TransactionManager
-│   ├── snapshots.py           # Raw SQL CRUD (snapshots, devices)
+│   ├── snapshots.py            # Raw SQL CRUD (snapshots, devices)
 │   ├── orm_models.py          # SQLAlchemy models
-│   ├── orm_dto.py             # ORM ↔ DTO mapping (to_dict/from_dict, datetime/UUID)
-│   ├── orm_routes.py          # ORM endpoints (/orm/snapshots, /orm/devices)
-│   ├── metrics_cache.py       # TTL cache for /metrics
-│   ├── metrics_reader.py      # psutil CPU/RAM/disk
+│   ├── orm_dto.py             # ORM ↔ DTO mapping
+│   ├── orm_routes.py          # ORM endpoints, POST /orm/upload_snapshot (retry, backup, lock)
+│   ├── snapshot_backup.py     # Append-only backup + failed log (no queue server)
+│   ├── metrics_reader.py
+│   ├── metrics_cache.py
 │   ├── protocol.py            # Length-prefixed TCP messages
+│   ├── raii.py
 │   ├── tcp_server.py
 │   ├── tcp_client.py
+│   ├── youtube_fetcher.py     # YouTube Data API v3 (YOUTUBE_API_KEY)
+│   ├── mobile_models.py       # Mobile/Firestore data types
+│   ├── mobile_collector.py    # Firestore reader (config-driven)
+│   ├── mobile_routes.py       # GET /mobile/locations, /mobile/snapshot, etc.
+│   ├── mobile_snapshot_bridge.py   # Mobile → unified Snapshot shape
 │   ├── blocktimer/
-│   ├── configlib/
-│   └── datasnapshot/
-├── data/                      # vroomvroom.db (created at runtime)
+│   ├── configlib/             # Config + logging
+│   ├── datasnapshot/          # Snapshot domain model + JSON
+│   └── collectors/            # 3rd party + mobile upload to same API
+│       ├── _upload.py
+│       ├── third_party_collector.py   # YouTube stream count
+│       └── mobile_upload.py   # Mobile (Firestore) → POST /orm/upload_snapshot
+├── data/                      # vroomvroom.db, snapshot_backup.jsonl, failed_snapshots.jsonl (runtime)
 ├── scripts/
+│   ├── run_all_collectors.py  # Run YouTube + mobile collectors once (web app must be up)
+│   ├── replay_failed_snapshots.py    # Replay data/failed_snapshots.jsonl into DB
 │   ├── verify_indexes.py
 │   └── performance_scan_vs_search.py
 ├── logs/
 └── README.md
 ```
+
+### Scripts (run from project root)
+
+| Script | Purpose |
+|--------|--------|
+| `python scripts/run_all_collectors.py` | Run 3rd party (YouTube) and mobile (Firebase) collectors once; web app must be running. |
+| `python scripts/replay_failed_snapshots.py` | Replay `data/failed_snapshots.jsonl` into the DB after fixing transient failures. See `docs/BACKUP_AND_FAILED_REPLAY.md`. |
+| `python scripts/verify_indexes.py` | Ensure DB and indexes exist (init_db). |
+| `python scripts/performance_scan_vs_search.py` | Index vs search performance check; leaves DB with indexes restored. |
+
+**Docs:** See `docs/README.md` for an index of all design and runbook docs.
