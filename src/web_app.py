@@ -5,7 +5,7 @@ At entry point: initialise config, initialise logging, register routes, then run
 - GET /hello   → returns the text "Hello World"
 - GET /health  → returns "OK" and status 200
 - GET /metrics → returns JSON (cached with TTL; one thread updates, others serve cache).
-- GET /youtube/vroom-vroom → fetches current view count from YouTube API, stores snapshot, returns JSON (on-demand).
+- GET /youtube/vroom-vroom → fetches current view count from YouTube API, stores snapshot, returns JSON (on-demand). Scheduled collection is done by the collector agent at the same interval as system metrics.
 
 Run: python -m src.web_app  (or gunicorn for production).
 """
@@ -130,7 +130,7 @@ def register_routes(app: Flask) -> None:
         """
         GET /youtube/vroom-vroom: fetch current view count from YouTube Data API v3,
         store as a snapshot (device youtube-vroom-vroom, metric total_streams), return JSON.
-        On-demand only; requires YOUTUBE_API_KEY environment variable.
+        On-demand only; scheduled collection is done by the collector agent. Requires YOUTUBE_API_KEY.
         """
         from .orm_dto import snapshot_from_dto
         from .orm_models import get_session

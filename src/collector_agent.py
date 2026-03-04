@@ -1,6 +1,7 @@
 """
 Long-running collector agent: continuous timing loop, read metrics, upload via API.
 
+- Collects both system metrics and YouTube view count at the same interval.
 - Start-based scheduling: next run at (loop_start + interval) to avoid drift.
 - Error retry: upload retries with exponential backoff.
 - Graceful shutdown: SIGTERM/SIGINT set a flag; loop exits after current iteration.
@@ -13,6 +14,7 @@ import signal
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
 from dataclasses import asdict
 
@@ -130,6 +132,22 @@ def run_agent(
                 "Cycle %d: uploaded snapshot %s (%d metrics)",
                 cycle, snapshot.timestamp_utc.isoformat(), len(snapshot.metrics),
             )
+
+            # YouTube: same interval, same mechanism (fetch and upload via API)
+            try:
+                from .youtube_fetcher import YouTubeFetcherError, get_view_count
+                view_count = get_view_count()
+                youtube_dto = {
+                    "device_id": "youtube-vroom-vroom",
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                    "metrics": [
+                        {"name": "total_streams", "value": float(view_count), "unit": "count", "status": "normal"}
+                    ],
+                }
+                upload_snapshot_with_retry(api, youtube_dto)
+                logger.info("Cycle %d: uploaded YouTube snapshot (total_streams=%s)", cycle, view_count)
+            except YouTubeFetcherError as e:
+                logger.warning("Cycle %d: YouTube fetch skipped: %s", cycle, e)
         except MetricsError as e:
             logger.error("Cycle %d: failed to read metrics: %s", cycle, e, exc_info=True)
         except Exception as e:
