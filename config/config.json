@@ -1,7 +1,7 @@
 {
   "app_name": "VroomVroom Monitor",
   "device_id": "pc-01",
-  "read_interval_seconds": 30,
+  "read_interval_seconds": 1200,
   "log_level": "INFO",
   "log_file_path": "logs/app.log",
   "danger_thresholds": { "thread_count":300, "ram_percent": 85, "disk_read_mb_s":50 },
