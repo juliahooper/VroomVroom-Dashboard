@@ -81,14 +81,8 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
     ON snapshot_metric(metric_type_id);
 """
 
-# The three standard metric types – inserted once when the DB is first created.
-# total_streams: YouTube view count for Vroom Vroom (stored per snapshot).
-_SEED_METRIC_TYPES = [
-    ("total_streams", "count"),
-    ("Running Threads", "count"),
-    ("RAM Usage", "%"),
-    ("Disk Read Speed", "MB/s"),
-]
+# Seed list lives in db_seed.py so ORM and raw SQL stay in sync.
+from .db_seed import SEED_METRIC_TYPES as _SEED_METRIC_TYPES
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +94,13 @@ def init_db() -> None:
     Create the data/ directory, all tables, and seed metric_type rows.
     Safe to call every time the app starts (CREATE TABLE IF NOT EXISTS /
     INSERT OR IGNORE ensures no duplicate setup).
+    When DATABASE_URL is set, use PostgreSQL (ORM init) instead of local SQLite.
     """
+    if os.environ.get("DATABASE_URL"):
+        from .orm_models import init_pg_db
+        init_pg_db()
+        return
+
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
     # RAII: contextlib.closing guarantees conn.close() is called

@@ -19,6 +19,10 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Load .env first so DATABASE_URL is set before database/orm_models are imported
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
 from flask import Flask, current_app
 
 from .blocktimer import BlockTimer
@@ -49,9 +53,10 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
 def register_routes(app: Flask) -> None:
     """Register all URL routes on the Flask app."""
-    # Register Snapshots CRUD blueprint – raw SQL (POST/GET/PUT/DELETE /snapshots)
-    from .snapshots import snapshots_bp
-    app.register_blueprint(snapshots_bp)
+    # Raw SQL snapshot routes only when using local SQLite (no DATABASE_URL)
+    if not os.environ.get("DATABASE_URL"):
+        from .snapshots import snapshots_bp
+        app.register_blueprint(snapshots_bp)
 
     # Register ORM blueprint – SQLAlchemy (POST/GET /orm/snapshots, GET /orm/devices)
     from .orm_routes import orm_bp
