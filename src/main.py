@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         api_url = os.environ.get("VROOMVROOM_API_URL", "http://127.0.0.1:5000")
         try:
             from .collector_agent import run_agent
-            run_agent(config, interval_seconds=interval, api_base_url=api_url)
+            run_agent(config, interval_seconds=interval, api_base_url=api_url, config_path=config_path)
         except Exception as e:
             logger.error("Agent failed: %s", e, exc_info=True)
             logging.shutdown()

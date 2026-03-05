@@ -1,7 +1,7 @@
 """
 Long-running collector agent: continuous timing loop, read metrics, upload via API.
 
-- Collects both system metrics and YouTube view count at the same interval.
+- Collects PC metrics, YouTube view count, and mobile (Firebase) data at the same interval.
 - Start-based scheduling: next run at (loop_start + interval) to avoid drift.
 - Error retry: upload retries with exponential backoff.
 - Graceful shutdown: SIGTERM/SIGINT set a flag; loop exits after current iteration.
@@ -78,11 +78,12 @@ def run_agent(
     config: AppConfig,
     interval_seconds: int = 30,
     api_base_url: str | None = None,
+    config_path: str | None = None,
 ) -> None:
     """
-    Run the collector agent loop: every interval_seconds, read metrics, build snapshot,
-    upload to API. Start-based scheduling (sleep until loop_start + interval). Handles
-    SIGTERM/SIGINT for graceful shutdown.
+    Run the collector agent loop: every interval_seconds, read PC metrics, YouTube,
+    and mobile (Firebase) data, upload to API. Start-based scheduling (sleep until
+    loop_start + interval). Handles SIGTERM/SIGINT for graceful shutdown.
     """
     api = (api_base_url or "").strip() or _DEFAULT_API_URL
     thresholds = asdict(config.danger_thresholds)
@@ -148,6 +149,13 @@ def run_agent(
                 logger.info("Cycle %d: uploaded YouTube snapshot (total_streams=%s)", cycle, view_count)
             except YouTubeFetcherError as e:
                 logger.warning("Cycle %d: YouTube fetch skipped: %s", cycle, e)
+
+            # Mobile (Firebase): same interval; no-op if mobile not configured or disabled
+            try:
+                from .collectors.mobile_upload import collect_and_upload
+                collect_and_upload(api, config_path=config_path)
+            except Exception as e:
+                logger.warning("Cycle %d: mobile collect/upload skipped: %s", cycle, e)
         except MetricsError as e:
             logger.error("Cycle %d: failed to read metrics: %s", cycle, e, exc_info=True)
         except Exception as e:
