@@ -4,12 +4,13 @@
   "read_interval_seconds": 1200,
   "log_level": "INFO",
   "log_file_path": "logs/app.log",
-  "danger_thresholds": { "thread_count":300, "ram_percent": 85, "disk_read_mb_s":50 },
+  "danger_thresholds": { "thread_count":300,
+   "ram_percent": 85, "disk_read_mb_s":50 },
   "server_host": "127.0.0.1",
   "server_port": 54545,
   "sql_echo": false,
   "mobile": {
-    "enabled": false,
+    "enabled": true,
     "firebase_credentials_path": "config/firebase-service-account.json",
     "collections": {
       "locations": "locations",
