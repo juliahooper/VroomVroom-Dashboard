@@ -6,6 +6,7 @@ and the ORM layer (orm_models.py) so metric types stay in sync.
 # Add or edit here; init will INSERT new names and UPDATE units for existing ones.
 SEED_METRIC_TYPES = [
     ("total_streams", "count"),
+    ("Like Count", "count"),
     ("Running Threads", "count"),
     ("RAM Usage", "%"),
     ("Disk Read Speed", "MB/s"),

@@ -134,19 +134,20 @@ def run_agent(
                 cycle, snapshot.timestamp_utc.isoformat(), len(snapshot.metrics),
             )
 
-            # YouTube: same interval, same mechanism (fetch and upload via API)
+            # YouTube: same interval (view count + like count = 2 metrics for 3rd party)
             try:
-                from .youtube_fetcher import YouTubeFetcherError, get_view_count
-                view_count = get_view_count()
+                from .youtube_fetcher import YouTubeFetcherError, get_video_statistics
+                stats = get_video_statistics()
                 youtube_dto = {
                     "device_id": "youtube-vroom-vroom",
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                     "metrics": [
-                        {"name": "total_streams", "value": float(view_count), "unit": "count", "status": "normal"}
+                        {"name": "total_streams", "value": float(stats["view_count"]), "unit": "count", "status": "normal"},
+                        {"name": "Like Count", "value": float(stats["like_count"]), "unit": "count", "status": "normal"},
                     ],
                 }
                 upload_snapshot_with_retry(api, youtube_dto)
-                logger.info("Cycle %d: uploaded YouTube snapshot (total_streams=%s)", cycle, view_count)
+                logger.info("Cycle %d: uploaded YouTube snapshot (views=%s, likes=%s)", cycle, stats["view_count"], stats["like_count"])
             except YouTubeFetcherError as e:
                 logger.warning("Cycle %d: YouTube fetch skipped: %s", cycle, e)
 

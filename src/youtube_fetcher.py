@@ -23,16 +23,16 @@ class YouTubeFetcherError(Exception):
     """Raised when the YouTube API key is missing or the API request fails."""
 
 
-def get_view_count(*, api_key: str | None = None, video_id: str | None = None) -> int:
+def get_video_statistics(
+    *,
+    api_key: str | None = None,
+    video_id: str | None = None,
+) -> dict[str, int]:
     """
-    Fetch the view count for a YouTube video via Data API v3.
-
-    Args:
-        api_key: YouTube API key. If None, uses YOUTUBE_API_KEY env var.
-        video_id: Video ID (e.g. qfAqtFuGjWM). If None, uses YOUTUBE_VIDEO_ID env or DEFAULT_VIDEO_ID.
+    Fetch view count and like count for a YouTube video via Data API v3 (one request).
 
     Returns:
-        View count as integer.
+        {"view_count": int, "like_count": int}. like_count is 0 if the API omits it (e.g. likes disabled).
 
     Raises:
         YouTubeFetcherError: If key is missing, request fails, or response has no statistics.
@@ -69,6 +69,22 @@ def get_view_count(*, api_key: str | None = None, video_id: str | None = None) -
         raise YouTubeFetcherError("Video statistics do not include viewCount")
 
     try:
-        return int(view_count_str)
+        view_count = int(view_count_str)
     except (TypeError, ValueError) as e:
         raise YouTubeFetcherError(f"Invalid viewCount value: {view_count_str}") from e
+
+    like_count_str = stats.get("likeCount")
+    try:
+        like_count = int(like_count_str) if like_count_str is not None else 0
+    except (TypeError, ValueError):
+        like_count = 0
+
+    return {"view_count": view_count, "like_count": like_count}
+
+
+def get_view_count(*, api_key: str | None = None, video_id: str | None = None) -> int:
+    """
+    Fetch the view count for a YouTube video via Data API v3.
+    Convenience wrapper around get_video_statistics() for callers that only need views.
+    """
+    return get_video_statistics(api_key=api_key, video_id=video_id)["view_count"]
