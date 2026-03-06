@@ -11,7 +11,7 @@
   "sql_echo": false,
   "mobile": {
     "enabled": true,
-    "firebase_credentials_path": "config/firebase-service-account.json",
+    "firebase_credentials_path": "firebase-service-account.json",
     "collections": {
       "locations": "locations",
       "safety_alerts": "safety_alerts",
