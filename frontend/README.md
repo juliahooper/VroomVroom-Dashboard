@@ -18,13 +18,32 @@ npm install
 
 ## Development
 
-With the Flask API running on port 5000:
+Run the frontend dev server with hot reload. API requests are proxied to the backend.
 
+**1. Start the backend** (Flask) somewhere — locally or on your VM:
 ```bash
+python -m src.web_app
+# or however you run it on the VM
+```
+
+**2. Start the frontend dev server:**
+```bash
+cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173/dashboard/ — Vite proxies `/orm` and `/dashboard/assets` to Flask.
+**3. Open** http://localhost:5176/dashboard/
+
+Vite proxies `/orm` and `/health` to the backend. **No restart needed** — frontend changes (React, CSS) hot-reload instantly.
+
+**Backend on a VM?** Set `VITE_API_PROXY` to your backend URL before starting the dev server:
+```bash
+# Windows (PowerShell)
+$env:VITE_API_PROXY="http://192.168.1.100:5000"; npm run dev
+
+# Or create frontend/.env with:
+# VITE_API_PROXY=http://your-vm-ip:5000
+```
 
 ## Production build
 

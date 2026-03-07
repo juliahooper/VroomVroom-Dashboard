@@ -8,6 +8,7 @@ import {
   METRIC_DISK,
   METRIC_RAM,
   METRIC_TOTAL_STREAMS,
+  METRIC_LIKE_COUNT,
 } from './constants'
 import GaugeTachometer from './gauges/GaugeTachometer'
 import GaugeSpeedometer from './gauges/GaugeSpeedometer'
@@ -82,9 +83,8 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
   const disk = getMetric(metrics, METRIC_DISK)
   const ram = getMetric(metrics, METRIC_RAM)
   const youtubeMetrics = youtubeSnapshot?.metrics ?? []
-  const likeMetric = getMetric(youtubeMetrics, METRIC_TOTAL_STREAMS)
-  const viewCount = likeMetric?.value ?? 0
-  const likeCount = viewCount
+  const viewCount = getMetric(youtubeMetrics, METRIC_TOTAL_STREAMS)?.value ?? 0
+  const likeCount = getMetric(youtubeMetrics, METRIC_LIKE_COUNT)?.value ?? 0
 
   const tc = thresholds.thread_count ?? 300
   const rc = thresholds.ram_percent ?? 85
