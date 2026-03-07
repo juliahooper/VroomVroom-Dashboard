@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5176,
+      host: true, /* listen on 0.0.0.0 so port forwarding from host works */
       proxy: {
         '/orm': { target: apiTarget, changeOrigin: true },
         '/health': { target: apiTarget, changeOrigin: true },

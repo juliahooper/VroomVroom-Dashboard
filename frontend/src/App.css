@@ -199,8 +199,8 @@
   right: auto;
   bottom: auto;
   width: auto;
-  max-width: min(900px, calc(100vw - 24px));
-  max-height: calc((85vh - 56px) * 0.85);
+  max-width: min(1035px, calc(100vw - 24px));
+  max-height: calc((85vh - 56px) * 1.275);
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -212,10 +212,10 @@
 
 .dashboard-map-section__map {
   flex: 1 1 auto;
-  width: min(560px, 65%);
-  min-width: 320px;
+  width: min(644px, 75%);
+  min-width: 368px;
   height: 100%;
-  min-height: 320px;
+  min-height: 480px;
   pointer-events: auto;
 }
 
@@ -244,12 +244,13 @@
 /* Keep map and metrics side by side; tighten sizing on narrow screens */
 @media (max-width: 900px) {
   .dashboard-map-section {
-    max-width: min(700px, calc(100vw - 20px));
+    max-width: min(805px, calc(100vw - 20px));
   }
 
   .dashboard-map-section__map {
-    width: min(420px, 60%);
-    min-width: 280px;
+    width: min(483px, 69%);
+    min-width: 322px;
+    min-height: 420px;
   }
 
   .dashboard-map-section__metrics {
@@ -259,12 +260,13 @@
 
 @media (max-width: 600px) {
   .dashboard-map-section {
-    max-width: min(520px, calc(100vw - 20px));
+    max-width: min(598px, calc(100vw - 20px));
   }
 
   .dashboard-map-section__map {
-    width: min(320px, 55%);
-    min-width: 240px;
+    width: min(368px, 63%);
+    min-width: 276px;
+    min-height: 360px;
   }
 
   .dashboard-map-section__metrics {
@@ -279,8 +281,9 @@
   }
 
   .dashboard-map-section__map {
-    width: min(260px, 52%);
-    min-width: 200px;
+    width: min(299px, 60%);
+    min-width: 230px;
+    min-height: 300px;
   }
 
   .dashboard-map-section__metrics {
