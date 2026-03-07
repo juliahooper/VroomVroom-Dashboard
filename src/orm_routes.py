@@ -120,6 +120,14 @@ def upload_snapshot():
     except ValueError as e:
         return _json_response({"error": str(e)}, 400)
 
+    metrics_in = dto.get("metrics") or []
+    if not metrics_in and "mobile:" in str(dto.get("device_id", "")):
+        logger.warning(
+            "POST /orm/upload_snapshot – mobile device %s has 0 metrics in payload. "
+            "Check Firestore field names match config value_fields (risk_score, water_temp).",
+            dto.get("device_id"),
+        )
+
     last_error = None
     for attempt in range(1, _UPLOAD_RETRY_ATTEMPTS + 1):
         try:
@@ -129,7 +137,10 @@ def upload_snapshot():
                     summary = snapshot_to_summary_dto(snapshot)
                     summary["uploaded"] = True
                 append_backup(dto)
-            logger.info("POST /orm/upload_snapshot – stored id=%d device=%s", summary["id"], summary["device_id"])
+            logger.info(
+                "POST /orm/upload_snapshot – stored id=%d device=%s metric_count=%d",
+                summary["id"], summary["device_id"], summary.get("metric_count", 0),
+            )
             return _json_response(summary, 201)
         except Exception as e:
             last_error = e

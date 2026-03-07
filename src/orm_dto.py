@@ -233,7 +233,7 @@ def snapshot_from_dto(dto: dict[str, Any], session: Session) -> Snapshot:
     session.add(snapshot)
     session.flush()
 
-    # Create SnapshotMetric rows (explicit lookup by metric name)
+    # Create SnapshotMetric rows (lookup by metric name; create metric_type if missing)
     for m in metrics_list:
         if not isinstance(m, dict):
             continue
@@ -244,7 +244,11 @@ def snapshot_from_dto(dto: dict[str, Any], session: Session) -> Snapshot:
             select(MetricType).where(MetricType.name == name)
         ).first()
         if metric_type is None:
-            continue
+            # Create metric_type on-the-fly so uploads don't silently drop metrics
+            unit = str(m.get("unit", ""))
+            metric_type = MetricType(name=name, unit=unit)
+            session.add(metric_type)
+            session.flush()
         value = float(m.get("value", 0))
         status = str(m.get("status", "normal"))
         if status not in ("normal", "warning", "danger"):
