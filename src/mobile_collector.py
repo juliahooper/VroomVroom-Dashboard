@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from .configlib import MobileConfig
@@ -116,11 +117,13 @@ class MobileDataCollector:
         location_id: str,
         metric_id: str | None = None,
         limit_override: int | None = None,
+        since_timestamp_millis: int | None = None,
     ) -> list[TimeSeriesPoint]:
         """
         Fetch time-series points for a location. If metric_id is given, use that
         time_series_sources entry; otherwise use the first. Value fields come from config.
         limit_override: if set, use instead of source.limit (e.g. for backfill).
+        since_timestamp_millis: if set, only return points with timestamp > this (incremental sync).
         """
         db = self._client()
         if db is None or not self._config:
@@ -136,9 +139,11 @@ class MobileDataCollector:
         limit = limit_override if limit_override is not None else source.limit
         try:
             ref = db.collection(coll_name)
-            query = ref.where(source.location_field, "==", location_id).order_by(
-                source.timestamp_field
-            ).limit(limit)
+            query = ref.where(source.location_field, "==", location_id)
+            if since_timestamp_millis is not None and since_timestamp_millis > 0:
+                since_dt = datetime.fromtimestamp(since_timestamp_millis / 1000.0, tz=timezone.utc)
+                query = query.where(source.timestamp_field, ">", since_dt)
+            query = query.order_by(source.timestamp_field).limit(limit)
             docs = query.stream()
             out = []
             for doc in docs:
