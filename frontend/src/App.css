@@ -433,6 +433,12 @@
   margin: 0 auto;
 }
 
+.boat-dashboard-panel--live .boat-dashboard-panel__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .boat-dashboard-panel__error,
 .boat-dashboard-panel__loading {
   text-align: center;
@@ -450,11 +456,11 @@
 
 /* Live: boat-style gauges in a row with slight triangle (center up, sides down) */
 .boat-gauges-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
   gap: clamp(16px, 3vw, 40px);
-  align-items: end;
-  justify-items: center;
 }
 
 .boat-gauge-wrap {
@@ -475,7 +481,8 @@
 
 @media (max-width: 640px) {
   .boat-gauges-row {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: center;
   }
   .boat-gauge-wrap--center,
   .boat-gauge-wrap--left,
@@ -491,10 +498,11 @@
   padding: clamp(10px, 2.5vw, 20px);
   box-shadow: none;
   min-width: 0;
-  max-width: min(414px, 100%);
-  width: clamp(207px, 32.2vw, 414px);
+  max-width: min(400px, 100%);
+  width: clamp(200px, 32vw, 400px);
   filter: none;
-  transform: scale(clamp(1.61, 2.875vw, 2.185));
+  /* ~35% bigger */
+  transform: scale(clamp(1.9, 3.4vw, 2.55));
   transform-origin: center bottom;
 }
 

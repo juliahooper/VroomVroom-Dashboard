@@ -12,12 +12,23 @@ const IRELAND_BOUNDS = { latMin: 51.4, latMax: 55.4, lngMin: -10.2, lngMax: -5.8
 const PADDING = { left: 2.5, right: 2.5, top: 2.5, bottom: 2.5 } // % padding in SVG
 const X_OFFSET = -5 // shift markers left so they sit on land
 
+// Per-location nudge (x, y) in % – move markers that appear in the sea onto land
+const MARKER_OFFSETS = {
+  loc_lough_dan: { x: -7, y: 0 },
+  loc_lough_tay: { x: -7, y: 0 },
+}
+
 /** Convert lat/lng to percentage position on Blank Ireland.svg */
-function latLngToPercent(lat, lng) {
+function latLngToPercent(lat, lng, locationId) {
   const xNorm = (lng - IRELAND_BOUNDS.lngMin) / (IRELAND_BOUNDS.lngMax - IRELAND_BOUNDS.lngMin)
   const yNorm = (IRELAND_BOUNDS.latMax - lat) / (IRELAND_BOUNDS.latMax - IRELAND_BOUNDS.latMin)
   let x = PADDING.left + xNorm * (100 - PADDING.left - PADDING.right) + X_OFFSET
-  const y = PADDING.top + yNorm * (100 - PADDING.top - PADDING.bottom)
+  let y = PADDING.top + yNorm * (100 - PADDING.top - PADDING.bottom)
+  const offset = locationId ? MARKER_OFFSETS[locationId] : null
+  if (offset) {
+    x += offset.x
+    y += offset.y
+  }
   return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
 }
 
@@ -63,7 +74,7 @@ export default function IrelandMapStatic({ selectedLocationId, onSelectLocation 
           title="Blank Ireland (User:Angr, CC BY-SA 3.0, via Wikimedia Commons)"
         />
         {locations.map((loc) => {
-          const pos = latLngToPercent(loc.lat, loc.lng)
+          const pos = latLngToPercent(loc.lat, loc.lng, loc.id)
           const isSelected = selectedLocationId === loc.id
           return (
             <button
