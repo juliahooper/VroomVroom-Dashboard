@@ -15,3 +15,14 @@ SEED_METRIC_TYPES = [
     ("Alert Count", "count"),
     ("Water Temp", "°C"),
 ]
+
+# Swim spot locations for the map. Read from here for map markers; metrics come from Postgres.
+# (id, name, county, lat, lng)
+SEED_LOCATIONS = [
+    ("loc_lough_dan", "Lough Dan", "Wicklow", 53.075436, -6.285918),
+    ("loc_lough_derg", "Lough Derg", "Tipperary", 52.983, -8.317),
+    ("loc_lough_key", "Lough Key", "Roscommon", 54.0, -8.25),
+    ("loc_lough_owell", "Lough Owel", "Westmeath", 53.5731, -7.3883),
+    ("loc_lough_ree", "Lough Ree", "Longford", 53.5, -7.9667),
+    ("loc_lough_tay", "Lough Tay", "Wicklow", 53.106014, -6.266763),
+]

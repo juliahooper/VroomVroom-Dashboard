@@ -26,7 +26,7 @@ from .orm_dto import (
     validate_snapshot_upload_dto,
 )
 from .mobile_snapshot_bridge import MOBILE_DEVICE_ID_PREFIX
-from .orm_models import Device, Location, Snapshot, SnapshotMetric, get_session
+from .orm_models import Device, Snapshot, SnapshotMetric, get_session
 from .snapshot_backup import append_backup, append_failed
 from .web_app import APP_CONFIG_KEY, _json_response
 
@@ -300,16 +300,16 @@ def _metrics_from_snapshot(snapshot) -> dict[str, float]:
 @orm_bp.route("/locations", methods=["GET"])
 def orm_list_locations():
     """
-    GET /orm/locations — list all locations (id, name, county, lat, lng) for map markers.
-    cold_water_shock_risk_score and alert_count come from the latest snapshot for device
-    mobile:{location_id}, same schema as PC/YouTube metrics. Falls back to location table if no snapshot.
+    GET /orm/locations — list locations for map markers.
+    Locations come from SEED_LOCATIONS (local). Metrics (cold_water_shock_risk_score, alert_count)
+    come from the latest snapshot for device mobile:{location_id} in Postgres.
     """
+    from .db_seed import SEED_LOCATIONS
+
     with get_session() as session:
-        stmt = select(Location).order_by(Location.id)
-        locations = session.scalars(stmt).all()
         result = []
-        for loc in locations:
-            device_id = f"{MOBILE_DEVICE_ID_PREFIX}{loc.id}"
+        for loc_id, name, county, lat, lng in SEED_LOCATIONS:
+            device_id = f"{MOBILE_DEVICE_ID_PREFIX}{loc_id}"
             snapshot_stmt = (
                 select(Snapshot)
                 .options(
@@ -326,18 +326,18 @@ def orm_list_locations():
                 risk = metrics["Cold Water Shock Risk"]
                 alerts = metrics["Alert Count"]
             else:
-                risk = float(getattr(loc, "cold_water_shock_risk_score", 0))
-                alerts = int(getattr(loc, "alert_count", 0))
+                risk = 0.0
+                alerts = 0
             result.append({
-                "id": loc.id,
-                "name": loc.name,
-                "county": loc.county,
-                "lat": loc.lat,
-                "lng": loc.lng,
+                "id": loc_id,
+                "name": name,
+                "county": county,
+                "lat": lat,
+                "lng": lng,
                 "cold_water_shock_risk_score": risk,
                 "alert_count": alerts,
             })
-    logger.info("GET /orm/locations – returning %d locations", len(result))
+    logger.info("GET /orm/locations – returning %d locations (from SEED_LOCATIONS, metrics from Postgres)", len(result))
     return _json_response(result, 200)
 
 

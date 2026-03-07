@@ -106,26 +106,7 @@ _SEED_METRIC_TYPES = [
     ("Water Temp", "°C"),
 ]
 
-# Swim spot locations for the map. IDs match Firebase (device_id = mobile:loc_xxx).
-# lat/lng are static; cold_water_shock_risk_score and alert_count come from snapshots (fallback 0).
-_SEED_LOCATIONS = [
-    ("loc_lough_dan", "Lough Dan", "Wicklow", 53.075436, -6.285918),
-    ("loc_lough_derg", "Lough Derg", "Tipperary", 52.983, -8.317),
-    ("loc_lough_key", "Lough Key", "Roscommon", 54.0, -8.25),
-    ("loc_lough_owell", "Lough Owel", "Westmeath", 53.5731, -7.3883),
-    ("loc_lough_ree", "Lough Ree", "Longford", 53.5, -7.9667),
-    ("loc_lough_tay", "Lough Tay", "Wicklow", 53.106014, -6.266763),
-]
-
-# Fallback metrics when no snapshot exists (cold_water_shock_risk_score 0–100, alert_count).
-_SEED_LOCATION_METRICS = [
-    ("loc_lough_dan", 0.0, 0),
-    ("loc_lough_derg", 0.0, 0),
-    ("loc_lough_key", 0.0, 0),
-    ("loc_lough_owell", 0.0, 0),
-    ("loc_lough_ree", 0.0, 0),
-    ("loc_lough_tay", 0.0, 0),
-]
+# Swim spot locations – use shared db_seed.SEED_LOCATIONS (map reads from there; metrics from Postgres).
 
 
 # ---------------------------------------------------------------------------
@@ -184,14 +165,13 @@ def init_db() -> None:
                 "DELETE FROM location WHERE id IN ('loc_dublin', 'loc_cork', 'loc_galway')"
             )
             # Step 3c: Seed swim spots (IDs match Firebase mobile:loc_xxx). REPLACE updates existing.
-            for (loc_id, name, county, lat, lng), (_, score, count) in zip(
-                _SEED_LOCATIONS, _SEED_LOCATION_METRICS
-            ):
+            from .db_seed import SEED_LOCATIONS
+            for loc_id, name, county, lat, lng in SEED_LOCATIONS:
                 conn.execute(
                     "INSERT OR REPLACE INTO location "
                     "(id, name, county, lat, lng, cold_water_shock_risk_score, alert_count) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (loc_id, name, county, lat, lng, score, count),
+                    "VALUES (?, ?, ?, ?, ?, 0, 0)",
+                    (loc_id, name, county, lat, lng),
                 )
 
     logger.info("Database initialised at %s", DB_PATH)

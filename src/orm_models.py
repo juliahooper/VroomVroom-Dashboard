@@ -245,6 +245,7 @@ def init_pg_db() -> None:
     Create all tables and seed metric_type. Call when DATABASE_URL is set
     Safe to call on every startup (CREATE TABLE IF NOT EXISTS;
     INSERT ON CONFLICT DO NOTHING; UPDATE for units).
+    Locations for the map are read from SEED_LOCATIONS (local), not from DB.
     """
     from sqlalchemy import text
 
