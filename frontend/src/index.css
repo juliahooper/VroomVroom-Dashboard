@@ -1,0 +1,27 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  min-height: auto;
+}
+
+html {
+  scrollbar-width: none;
+}
+
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #f0f4f8;
+}
