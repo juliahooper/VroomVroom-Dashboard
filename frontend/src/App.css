@@ -194,7 +194,7 @@
 /* ----- Map under Live/Historic toggle; metrics to the right; half height ----- */
 .dashboard-map-section {
   position: absolute;
-  top: 56px;
+  top: calc(56px + 10vh);
   left: clamp(8px, 2vw, 16px);
   right: auto;
   bottom: auto;
@@ -267,7 +267,7 @@
 
 @media (max-width: 480px) {
   .dashboard-map-section {
-    top: 52px;
+    top: calc(52px + 10vh);
     gap: 14px;
   }
 
@@ -491,10 +491,10 @@
   padding: clamp(10px, 2.5vw, 20px);
   box-shadow: none;
   min-width: 0;
-  max-width: min(360px, 100%);
-  width: clamp(180px, 28vw, 360px);
+  max-width: min(414px, 100%);
+  width: clamp(207px, 32.2vw, 414px);
   filter: none;
-  transform: scale(clamp(1.4, 2.5vw, 1.9));
+  transform: scale(clamp(1.61, 2.875vw, 2.185));
   transform-origin: center bottom;
 }
 

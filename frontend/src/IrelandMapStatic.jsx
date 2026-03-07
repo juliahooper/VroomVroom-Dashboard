@@ -7,14 +7,16 @@ import { useEffect, useState } from 'react'
 import { fetchLocations } from './api'
 
 // Blank Ireland.svg: 908×1159, shape has ~3% padding. Map geographic bounds to shape area.
-const IRELAND_BOUNDS = { latMin: 51.4, latMax: 55.4, lngMin: -10.5, lngMax: -6.0 }
+// Tighter bounds and left offset so markers stay on land (not in the sea).
+const IRELAND_BOUNDS = { latMin: 51.4, latMax: 55.4, lngMin: -10.2, lngMax: -5.8 }
 const PADDING = { left: 2.5, right: 2.5, top: 2.5, bottom: 2.5 } // % padding in SVG
+const X_OFFSET = -5 // shift markers left so they sit on land
 
 /** Convert lat/lng to percentage position on Blank Ireland.svg */
 function latLngToPercent(lat, lng) {
   const xNorm = (lng - IRELAND_BOUNDS.lngMin) / (IRELAND_BOUNDS.lngMax - IRELAND_BOUNDS.lngMin)
   const yNorm = (IRELAND_BOUNDS.latMax - lat) / (IRELAND_BOUNDS.latMax - IRELAND_BOUNDS.latMin)
-  const x = PADDING.left + xNorm * (100 - PADDING.left - PADDING.right)
+  let x = PADDING.left + xNorm * (100 - PADDING.left - PADDING.right) + X_OFFSET
   const y = PADDING.top + yNorm * (100 - PADDING.top - PADDING.bottom)
   return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
 }

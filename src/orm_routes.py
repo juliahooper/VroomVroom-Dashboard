@@ -297,37 +297,43 @@ def _metrics_from_snapshot(snapshot) -> dict[str, float]:
     return out
 
 
+# Swim spots map to device table ids 3–8 (first location = device 3, second = 4, … sixth = 8).
+SWIM_SPOT_DEVICE_IDS = (3, 4, 5, 6, 7, 8)
+
+
 @orm_bp.route("/locations", methods=["GET"])
 def orm_list_locations():
     """
     GET /orm/locations — list locations for map markers.
     Locations come from SEED_LOCATIONS (local). Metrics (cold_water_shock_risk_score, alert_count)
-    come from the latest snapshot for device mobile:{location_id} in Postgres.
+    come from the latest snapshot for device ids 3–8 (swim spots) in Postgres.
     """
     from .db_seed import SEED_LOCATIONS
 
     with get_session() as session:
         result = []
-        for loc_id, name, county, lat, lng in SEED_LOCATIONS:
-            device_id = f"{MOBILE_DEVICE_ID_PREFIX}{loc_id}"
-            snapshot_stmt = (
-                select(Snapshot)
-                .options(
-                    selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type),
-                )
-                .join(Snapshot.device)
-                .where(Device.device_id == device_id)
-                .order_by(Snapshot.id.desc())
-                .limit(1)
-            )
-            snapshot = session.scalars(snapshot_stmt).first()
-            if snapshot:
-                metrics = _metrics_from_snapshot(snapshot)
-                risk = metrics["Cold Water Shock Risk"]
-                alerts = metrics["Alert Count"]
+        for i, (loc_id, name, county, lat, lng) in enumerate(SEED_LOCATIONS):
+            device_db_id = SWIM_SPOT_DEVICE_IDS[i] if i < len(SWIM_SPOT_DEVICE_IDS) else None
+            if device_db_id is None:
+                risk, alerts = 0.0, 0
             else:
-                risk = 0.0
-                alerts = 0
+                snapshot_stmt = (
+                    select(Snapshot)
+                    .options(
+                        selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type),
+                    )
+                    .where(Snapshot.device_id == device_db_id)
+                    .order_by(Snapshot.id.desc())
+                    .limit(1)
+                )
+                snapshot = session.scalars(snapshot_stmt).first()
+                if snapshot:
+                    metrics = _metrics_from_snapshot(snapshot)
+                    risk = metrics["Cold Water Shock Risk"]
+                    alerts = metrics["Alert Count"]
+                else:
+                    risk = 0.0
+                    alerts = 0
             result.append({
                 "id": loc_id,
                 "name": name,
