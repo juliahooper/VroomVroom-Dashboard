@@ -14,8 +14,9 @@ export const METRIC_THREADS = 'Running Threads'
 export const METRIC_DISK = 'Disk Usage'
 export const METRIC_RAM = 'RAM Usage'
 
-/** YouTube metric */
+/** YouTube metrics */
 export const METRIC_TOTAL_STREAMS = 'total_streams'
+export const METRIC_LIKE_COUNT = 'Like Count'
 
 /** Location metrics (from mobile snapshots) */
 export const METRIC_COLD_WATER_SHOCK = 'Cold Water Shock Risk'

@@ -4,13 +4,25 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { fetchLocations } from './api'
 
-// Fix default marker icon in bundler (webpack/vite)
-delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-})
+// Custom large, visible marker icon (default Leaflet markers are small and can be hard to see)
+const MARKER_SIZE = 36
+const createMarkerIcon = () =>
+  L.divIcon({
+    className: 'vroom-marker',
+    html: `
+      <div style="
+        width: ${MARKER_SIZE}px;
+        height: ${MARKER_SIZE}px;
+        background: #dc2626;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      "></div>
+    `,
+    iconSize: [MARKER_SIZE, MARKER_SIZE],
+    iconAnchor: [MARKER_SIZE / 2, MARKER_SIZE],
+  })
 
 const IRELAND_CENTER = [53.4, -7.7]
 const IRELAND_ZOOM = 6
@@ -74,6 +86,7 @@ export default function IrelandMap({ selectedLocationId, onSelectLocation }) {
           <Marker
             key={loc.id}
             position={[loc.lat, loc.lng]}
+            icon={createMarkerIcon()}
             eventHandlers={{
               click: () => typeof onSelectLocation === 'function' && onSelectLocation(loc),
             }}
