@@ -93,29 +93,38 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
     ON snapshot_metric(metric_type_id);
 """
 
-# The three standard metric types – inserted once when the DB is first created.
-# total_streams: YouTube view count for Vroom Vroom (stored per snapshot).
+# Metric types – inserted once when the DB is first created.
+# PC: Running Threads, RAM Usage, Disk Usage. YouTube: total_streams.
+# Mobile/locations: Cold Water Shock Risk, Alert Count (same schema as PC/YouTube).
 _SEED_METRIC_TYPES = [
     ("total_streams", "count"),
     ("Running Threads", "count"),
     ("RAM Usage", "%"),
-    ("Disk Read Speed", "MB/s"),
+    ("Disk Usage", "%"),
+    ("Cold Water Shock Risk", "%"),
+    ("Alert Count", "count"),
+    ("Water Temp", "°C"),
 ]
 
-# Irish locations for the map (id, name, county, lat, lng). Add more rows to seed further markers.
+# Swim spot locations for the map. IDs match Firebase (device_id = mobile:loc_xxx).
+# lat/lng are static; cold_water_shock_risk_score and alert_count come from snapshots (fallback 0).
 _SEED_LOCATIONS = [
-    ("loc_lough_dan", "Lough Dan", "Wicklow", 53.09, -6.12),
-    ("loc_dublin", "Dublin", "Dublin", 53.3498, -6.2603),
-    ("loc_cork", "Cork", "Cork", 51.8985, -8.4756),
-    ("loc_galway", "Galway", "Galway", 53.2707, -9.0518),
+    ("loc_lough_dan", "Lough Dan", "Wicklow", 53.075436, -6.285918),
+    ("loc_lough_derg", "Lough Derg", "Tipperary", 52.983, -8.317),
+    ("loc_lough_key", "Lough Key", "Roscommon", 54.0, -8.25),
+    ("loc_lough_owell", "Lough Owel", "Westmeath", 53.5731, -7.3883),
+    ("loc_lough_ree", "Lough Ree", "Longford", 53.5, -7.9667),
+    ("loc_lough_tay", "Lough Tay", "Wicklow", 53.106014, -6.266763),
 ]
 
-# Per-location live metrics: (id, cold_water_shock_risk_score 0–100, alert_count). Updated on seed.
+# Fallback metrics when no snapshot exists (cold_water_shock_risk_score 0–100, alert_count).
 _SEED_LOCATION_METRICS = [
-    ("loc_lough_dan", 72.0, 2),
-    ("loc_dublin", 35.0, 0),
-    ("loc_cork", 58.0, 1),
-    ("loc_galway", 45.0, 1),
+    ("loc_lough_dan", 0.0, 0),
+    ("loc_lough_derg", 0.0, 0),
+    ("loc_lough_key", 0.0, 0),
+    ("loc_lough_owell", 0.0, 0),
+    ("loc_lough_ree", 0.0, 0),
+    ("loc_lough_tay", 0.0, 0),
 ]
 
 
@@ -154,12 +163,7 @@ def init_db() -> None:
                 [(unit, name) for name, unit in _SEED_METRIC_TYPES],
             )
 
-            # Step 3: Seed location table for map markers (Ireland).
-            conn.executemany(
-                "INSERT OR IGNORE INTO location (id, name, county, lat, lng) VALUES (?, ?, ?, ?, ?)",
-                _SEED_LOCATIONS,
-            )
-            # Step 3b: Ensure location table has metric columns (migration for existing DBs).
+            # Step 3: Ensure location table has metric columns (migration for existing DBs).
             for col_def in [
                 "ALTER TABLE location ADD COLUMN cold_water_shock_risk_score REAL NOT NULL DEFAULT 0",
                 "ALTER TABLE location ADD COLUMN alert_count INTEGER NOT NULL DEFAULT 0",
@@ -169,11 +173,20 @@ def init_db() -> None:
                 except sqlite3.OperationalError as e:
                     if "duplicate column name" not in str(e).lower():
                         raise
-            # Step 3c: Update seeded locations with live metrics.
-            conn.executemany(
-                "UPDATE location SET cold_water_shock_risk_score = ?, alert_count = ? WHERE id = ?",
-                [(score, count, loc_id) for loc_id, score, count in _SEED_LOCATION_METRICS],
+            # Step 3b: Remove old demo locations (Dublin, Cork, Galway) if present.
+            conn.execute(
+                "DELETE FROM location WHERE id IN ('loc_dublin', 'loc_cork', 'loc_galway')"
             )
+            # Step 3c: Seed swim spots (IDs match Firebase mobile:loc_xxx). REPLACE updates existing.
+            for (loc_id, name, county, lat, lng), (_, score, count) in zip(
+                _SEED_LOCATIONS, _SEED_LOCATION_METRICS
+            ):
+                conn.execute(
+                    "INSERT OR REPLACE INTO location "
+                    "(id, name, county, lat, lng, cold_water_shock_risk_score, alert_count) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (loc_id, name, county, lat, lng, score, count),
+                )
 
     logger.info("Database initialised at %s", DB_PATH)
 

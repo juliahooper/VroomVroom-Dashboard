@@ -87,7 +87,7 @@ def create_snapshot(
     metric_configs = {
         "thread_count": {"name": "Running Threads", "unit": "count"},
         "ram_percent": {"name": "RAM Usage", "unit": "%"},
-        "disk_read_mb_s": {"name": "Disk Read Speed", "unit": "MB/s"},
+        "disk_usage_percent": {"name": "Disk Usage", "unit": "%"},
     }
 
     for metric_key, metric_value in metrics_dict.items():

@@ -30,12 +30,27 @@ export async function fetchHistoricSnapshots(device = 'pc-01', limit = 100) {
 
 /**
  * Fetch danger thresholds (and warning_fraction) for gauge green/yellow/red zones.
- * @returns {Promise<{ thread_count: number, ram_percent: number, disk_read_mb_s: number, warning_fraction: number }>}
+ * @returns {Promise<{ thread_count: number, ram_percent: number, disk_usage_percent: number, warning_fraction: number }>}
  */
 export async function fetchThresholds() {
   const res = await fetch(`${API_BASE}/orm/thresholds`)
   if (!res.ok) throw new Error(`Thresholds: ${res.status}`)
   return res.json()
+}
+
+/**
+ * Fetch locations (id, name, county, lat, lng, cold_water_shock_risk_score, alert_count).
+ * Locations are seeded in backend; metrics come from latest snapshot per mobile:loc_xxx.
+ */
+export async function fetchLocations() {
+  const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
+  const res = await fetch(`${API_BASE}/orm/locations`)
+  if (!res.ok) {
+    if (res.status === 404) return []
+    throw new Error(`Locations: ${res.status}`)
+  }
+  const data = await res.json()
+  return Array.isArray(data) ? data : []
 }
 
 export function getMetric(metrics, name) {

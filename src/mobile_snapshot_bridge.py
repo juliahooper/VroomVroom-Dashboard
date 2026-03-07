@@ -13,14 +13,14 @@ from datetime import datetime, timezone
 from .datasnapshot import Metric, Snapshot
 from .mobile_models import CountResult, TimeSeriesPoint
 
-# Display names and units must match metric_type names in the DB for uploads.
+# Display names must match metric_type names in the DB (same schema as PC/YouTube).
 _DISPLAY: dict[str, tuple[str, str]] = {
-    "risk_score": ("Risk Score", "value"),
+    "risk_score": ("Cold Water Shock Risk", "%"),
     "water_temp": ("Water Temp", "°C"),
 }
 
 _COUNT_DISPLAY: dict[str, tuple[str, str]] = {
-    "alerts_count": ("Alerts Count", "count"),
+    "alerts_count": ("Alert Count", "count"),
 }
 
 # Mobile snapshots use this prefix so device_id distinguishes source (e.g. mobile:loc_lough_dan).

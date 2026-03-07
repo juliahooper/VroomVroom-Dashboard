@@ -103,6 +103,20 @@ Metrics can be pulled from a Firestore backend (e.g. SwimScape) with **no hardco
 
 To add a new time-series or count metric, add another object to `time_series_sources` or `count_sources` and ensure the referenced collection exists in `collections`. No code changes are required.
 
+### Backfill (one-time)
+
+If Firebase already has historical data, run the backfill once before starting the normal collector:
+
+```bash
+# 1. Start the web app (backend must be running for uploads)
+python -m src.web_app
+
+# 2. In another terminal, run backfill
+python -m src.backfill_mobile
+```
+
+The backfill reads all time-series points (up to 10,000 per location) from Firestore and creates one snapshot per point. After it completes, run the collector normally (cron/scheduler) to ingest only new readings. Optional: `VROOMVROOM_API` (default `http://127.0.0.1:5000`) if the API is elsewhere.
+
 ### Endpoints (when mobile is enabled)
 
 | Endpoint | Description |
@@ -209,7 +223,7 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 - **SQLite:** Normalised schema in `src/database.py`. Indexes on FKs and timestamp. Multi-step writes use `TransactionManager`. See `docs/SCHEMA_DESIGN.md`.
 - **ORM:** SQLAlchemy models in `orm_models.py`; relationships and eager loading (joinedload/selectinload) in `orm_routes.py`.
 - **TCP client/server:** Length-prefixed JSON messages (`src.protocol`). Server buffers and parses; client sends one snapshot per run. Config: `server_host`, `server_port`.
-- **Config:** `config/config.json` (device_id, thresholds, log level, TCP host/port). Optional `sql_echo` for SQL logging. Env overrides: `VROOMVROOM_CONFIG`, `VROOMVROOM_DB`.
+- **Config:** `config/config.json` (device_id, danger_thresholds: thread_count, ram_percent, disk_usage_percent, log level, TCP host/port). Optional `sql_echo` for SQL logging. Env overrides: `VROOMVROOM_CONFIG`, `VROOMVROOM_DB`.
 - **RAII / BlockTimer:** Sockets and timing in `tcp_client`, `web_app` metrics handler; `src/blocktimer/` for block timing.
 
 ## Project layout
@@ -250,6 +264,7 @@ VroomVroom-Dashboard/
 │   ├── mobile_collector.py    # Firestore reader (config-driven)
 │   ├── mobile_routes.py       # GET /mobile/locations, /mobile/snapshot, etc.
 │   ├── mobile_snapshot_bridge.py   # Mobile → unified Snapshot shape
+│   ├── backfill_mobile.py          # One-time: load historical Firebase data into DB
 │   ├── blocktimer/
 │   ├── configlib/             # Config + logging
 │   ├── datasnapshot/          # Snapshot domain model + JSON
@@ -271,6 +286,7 @@ VroomVroom-Dashboard/
 
 | Script | Purpose |
 |--------|--------|
+| `python -m src.backfill_mobile` | One-time: load all historical Firebase data into the DB. Run before the normal collector. Web app must be running. |
 | `python scripts/run_all_collectors.py` | Run 3rd party (YouTube) and mobile (Firebase) collectors once; web app must be running. |
 | `python scripts/replay_failed_snapshots.py` | Replay `data/failed_snapshots.jsonl` into the DB after fixing transient failures. See `docs/BACKUP_AND_FAILED_REPLAY.md`. |
 | `python scripts/verify_indexes.py` | Ensure DB and indexes exist (init_db). |

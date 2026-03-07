@@ -3,13 +3,13 @@ Metrics reading and processing module.
 
 Reads the current number of running threads, RAM usage %, and disk usage % from
 the operating system (using the psutil library) and returns them as a dictionary.
-If psutil isn't installed or a read fails we raise MetricsError.
+Disk usage is from psutil.disk_usage() (percent used), which works reliably on
+Windows and other platforms. If psutil isn't installed or a read fails we raise MetricsError.
 """
 from __future__ import annotations
 
 import logging
 import os
-import time
 
 try:
     import psutil
@@ -26,10 +26,10 @@ class MetricsError(Exception):
 
 def read_metrics() -> dict[str, float]:
     """
-    Read system metrics (thread count, RAM %, and disk read speed).
+    Read system metrics (thread count, RAM %, and disk usage %).
     
     Returns:
-        Dictionary with 'thread_count', 'ram_percent', and 'disk_read_mb_s' keys.
+        Dictionary with 'thread_count', 'ram_percent', and 'disk_usage_percent' keys.
         
     Raises:
         MetricsError: If metrics cannot be read (e.g., psutil not installed or system error).
@@ -72,24 +72,21 @@ def read_metrics() -> dict[str, float]:
         raise MetricsError(f"Failed to read RAM percentage: {e}") from e
     
     try:
-        # Approximate disk read throughput (MB/s) using a 1s sampling window.
-        io_before = psutil.disk_io_counters()
-        time.sleep(1.0)
-        io_after = psutil.disk_io_counters()
-        read_bytes = io_after.read_bytes - io_before.read_bytes
-        if read_bytes < 0:
-            raise MetricsError(f"Invalid disk read bytes delta: {read_bytes}")
-        disk_read_mb_s = read_bytes / (1024 * 1024)
-        metrics["disk_read_mb_s"] = round(disk_read_mb_s, 2)
-        logger.debug(f"Disk read speed: {disk_read_mb_s:.2f} MB/s")
+        # Disk usage % (percent of partition used). Works reliably on Windows.
+        disk = psutil.disk_usage("/")
+        disk_usage_percent = disk.percent
+        if disk_usage_percent < 0 or disk_usage_percent > 100:
+            raise MetricsError(f"Invalid disk usage value: {disk_usage_percent}")
+        metrics["disk_usage_percent"] = round(disk_usage_percent, 2)
+        logger.debug(f"Disk usage: {disk_usage_percent}%")
         
     except Exception as e:
-        raise MetricsError(f"Failed to read disk read speed: {e}") from e
+        raise MetricsError(f"Failed to read disk usage: {e}") from e
     
     logger.info(
-        "Metrics read successfully - Threads: %s, RAM: %s%%, Disk read: %s MB/s",
+        "Metrics read successfully - Threads: %s, RAM: %s%%, Disk: %s%%",
         metrics["thread_count"],
         metrics["ram_percent"],
-        metrics["disk_read_mb_s"],
+        metrics["disk_usage_percent"],
     )
     return metrics
