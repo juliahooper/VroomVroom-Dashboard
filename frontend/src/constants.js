@@ -30,7 +30,11 @@ export const PC_METRIC_KEYS = [
 ]
 
 export const LOCATION_METRIC_KEYS = [
-  { key: METRIC_COLD_WATER_SHOCK, color: '#0ea5e9', name: 'Cold Water Shock Risk' },
-  { key: METRIC_ALERT_COUNT, color: '#f59e0b', name: 'Alerts' },
+  { key: METRIC_COLD_WATER_SHOCK, color: '#0ea5e9', name: 'Cold Water Shock Risk', chartType: 'bar' },
   { key: METRIC_WATER_TEMP, color: '#38bdf8', name: 'Water Temp (°C)' },
+]
+
+export const YOUTUBE_METRIC_KEYS = [
+  { key: METRIC_TOTAL_STREAMS, color: '#e53935', name: 'Total Streams' },
+  { key: METRIC_LIKE_COUNT, color: '#0d9488', name: 'Like Count' },
 ]

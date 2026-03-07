@@ -14,14 +14,23 @@ export async function fetchLatestSnapshot(device = 'pc-01') {
   return res.json()
 }
 
+/** ISO 8601 timestamp for 7 days ago (or since first data if less). */
+export function getHistoricSinceIso() {
+  const d = new Date()
+  d.setDate(d.getDate() - 7)
+  return d.toISOString()
+}
+
 /**
  * Fetch historic snapshots with full metrics for charts.
  * @param {string} [device='pc-01']
  * @param {number} [limit=100]
+ * @param {string} [since] ISO 8601 timestamp; if omitted, uses 7 days ago (last week)
  * @returns {Promise<Array<{ id: number, device_id: string, timestamp_utc: string, metrics: Array<{ name: string, unit: string, value: number, status: string }> }>>}
  */
-export async function fetchHistoricSnapshots(device = 'pc-01', limit = 100) {
+export async function fetchHistoricSnapshots(device = 'pc-01', limit = 100, since = getHistoricSinceIso()) {
   const params = new URLSearchParams({ device, limit: String(limit), expand: 'metrics' })
+  if (since) params.set('since', since)
   const res = await fetch(`${API_BASE}/orm/snapshots?${params}`)
   if (!res.ok) throw new Error(`Historic snapshots: ${res.status}`)
   const data = await res.json()

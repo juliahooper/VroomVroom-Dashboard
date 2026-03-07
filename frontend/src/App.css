@@ -191,6 +191,42 @@
   }
 }
 
+/* Historic: top-right zone shows chart instead of badges */
+.like-count-on-dashboard--historic {
+  flex-direction: column;
+  align-items: stretch;
+  min-width: clamp(432px, 60vw, 672px);
+  max-width: 768px;
+}
+
+.historic-chart-zone {
+  min-width: 0;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.48) 0%, rgba(248, 252, 255, 0.52) 100%);
+  border-radius: 16px;
+  padding: clamp(12px, 2vw, 16px);
+  box-shadow:
+    0 0 0 1px rgba(14, 165, 233, 0.22),
+    0 0 20px rgba(6, 182, 212, 0.14),
+    0 8px 28px rgba(10, 77, 122, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+}
+
+.historic-chart-zone--youtube {
+  min-height: 180px;
+}
+
+.historic-chart-zone--mobile {
+  min-height: 0;
+}
+
+.historic-chart-zone__loading {
+  text-align: center;
+  padding: 24px;
+  color: rgba(10, 77, 122, 0.7);
+  font-size: 0.95rem;
+}
+
 /* ----- Map under Live/Historic toggle; metrics to the right; half height ----- */
 .dashboard-map-section {
   position: absolute;
@@ -206,6 +242,26 @@
   padding: 0;
   z-index: 12;
   pointer-events: none;
+}
+
+.dashboard-map-section--historic {
+  justify-content: flex-start;
+}
+
+.dashboard-map-section--historic .dashboard-map-section__metrics {
+  max-width: 864px;
+  width: min(864px, 66vw);
+  margin-left: -60px;
+  min-height: 0;
+}
+
+.dashboard-map-section--historic .historic-chart-zone--mobile {
+  min-width: 0;
+  width: 100%;
+}
+
+.dashboard-map-section--historic .boat-chart-card {
+  min-width: 0;
 }
 
 .dashboard-map-section__map {
@@ -252,6 +308,11 @@
   .dashboard-map-section__metrics {
     max-width: 260px;
   }
+
+  .dashboard-map-section--historic .dashboard-map-section__metrics {
+    max-width: 560px;
+    width: min(560px, 85vw);
+  }
 }
 
 @media (max-width: 600px) {
@@ -264,6 +325,11 @@
 
   .dashboard-map-section__metrics {
     max-width: 220px;
+  }
+
+  .dashboard-map-section--historic .dashboard-map-section__metrics {
+    max-width: 600px;
+    width: min(600px, 92vw);
   }
 }
 
@@ -278,6 +344,11 @@
     height: min(530px, 50vh);
     min-width: 330px;
     min-height: 450px;
+  }
+
+  .dashboard-map-section--historic .dashboard-map-section__metrics {
+    max-width: 528px;
+    width: min(528px, 95vw);
   }
 
   .dashboard-map-section__metrics {
@@ -430,9 +501,23 @@
   box-sizing: border-box;
 }
 
+.boat-dashboard-panel--historic {
+  left: 50%;
+  transform: translate(-50%, -4vh);
+  right: auto;
+  width: min(1600px, 96vw);
+}
+
 .boat-dashboard-panel__inner {
   max-width: min(1200px, 100%);
   margin: 0 auto;
+}
+
+.boat-dashboard-panel--historic .boat-dashboard-panel__inner {
+  max-width: min(1600px, 98vw);
+  padding-left: clamp(8px, 2vw, 24px);
+  padding-right: clamp(8px, 2vw, 24px);
+  box-sizing: border-box;
 }
 
 .boat-dashboard-panel--live .boat-dashboard-panel__inner {
@@ -648,6 +733,40 @@
   gap: 20px;
 }
 
+.boat-charts--single {
+  gap: 12px;
+}
+
+.boat-chart-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 4px;
+}
+
+.boat-chart-toggle__tab {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(10, 77, 122, 0.7);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.boat-chart-toggle__tab:hover {
+  color: #0a4d7a;
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.boat-chart-toggle__tab--active {
+  color: #0a4d7a;
+  background: rgba(14, 165, 233, 0.2);
+}
+
 .boat-chart-card {
   background: linear-gradient(145deg, #fff 0%, #f0f8fc 100%);
   border: 1px solid rgba(10, 77, 122, 0.1);
@@ -656,6 +775,17 @@
   box-shadow: 0 2px 8px rgba(10, 77, 122, 0.06);
   min-width: 0;
   overflow: hidden;
+}
+
+.boat-chart-scroll-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;
+}
+
+.boat-chart-inner {
+  min-width: 100%;
 }
 
 .boat-chart-title {

@@ -2,30 +2,25 @@ import { useEffect, useState } from 'react'
 import { fetchLatestSnapshot, fetchHistoricSnapshots, fetchThresholds, getMetric } from './api'
 import {
   DEVICE_PC,
-  DEVICE_YOUTUBE,
-  deviceIdForLocation,
   METRIC_THREADS,
   METRIC_DISK,
   METRIC_RAM,
-  METRIC_TOTAL_STREAMS,
-  METRIC_LIKE_COUNT,
 } from './constants'
 import GaugeTachometer from './gauges/GaugeTachometer'
 import GaugeSpeedometer from './gauges/GaugeSpeedometer'
 import GaugeFuel from './gauges/GaugeFuel'
 import HistoricCharts from './HistoricCharts'
+import { PC_METRIC_KEYS } from './constants'
 
 const DEFAULT_THRESHOLDS = { thread_count: 300, ram_percent: 85, disk_usage_percent: 90, warning_fraction: 0.8 }
 
-export default function BoatDashboardPanel({ view, onLiveData, selectedLocation }) {
+export default function BoatDashboardPanel({ view, onLiveData }) {
   const [liveSnapshot, setLiveSnapshot] = useState(null)
-  const [youtubeSnapshot, setYoutubeSnapshot] = useState(null)
   const [historicSnapshots, setHistoricSnapshots] = useState([])
   const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
-  const historicDevice = selectedLocation ? deviceIdForLocation(selectedLocation.id) : DEVICE_PC
+  const [selectedMetricKey, setSelectedMetricKey] = useState(PC_METRIC_KEYS[0]?.key ?? null)
 
   useEffect(() => {
     let cancelled = false
@@ -35,12 +30,9 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
         .then((data) => { if (!cancelled) setLiveSnapshot(data) })
         .catch((e) => { if (!cancelled) setError(e.message) })
         .finally(() => { if (!cancelled) setLoading(false) })
-      fetchLatestSnapshot(DEVICE_YOUTUBE)
-        .then((data) => { if (!cancelled) setYoutubeSnapshot(data) })
-        .catch(() => { if (!cancelled) setYoutubeSnapshot(null) })
     }
     function loadHistoric() {
-      fetchHistoricSnapshots(historicDevice, 100)
+      fetchHistoricSnapshots(DEVICE_PC, 100)
         .then((data) => { if (!cancelled) setHistoricSnapshots(data) })
         .catch((e) => { if (!cancelled) setError(e.message) })
         .finally(() => { if (!cancelled) setLoading(false) })
@@ -58,7 +50,7 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
       loadHistoric()
       return () => { cancelled = true }
     }
-  }, [view, historicDevice])
+  }, [view])
 
   if (view === 'historic') {
     return (
@@ -69,8 +61,12 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
           {!loading && !error && (
             <HistoricCharts
               snapshots={historicSnapshots}
-              isLocationView={!!selectedLocation}
-              locationName={selectedLocation?.name}
+              metricKeys={PC_METRIC_KEYS}
+              selectedMetricKey={selectedMetricKey}
+              onSelectMetric={setSelectedMetricKey}
+              emptyMessage="No historic PC data yet. Collect more snapshots to see trends."
+              chartId="pc"
+              chartHeight={420}
             />
           )}
         </div>
@@ -82,9 +78,6 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
   const threads = getMetric(metrics, METRIC_THREADS)
   const disk = getMetric(metrics, METRIC_DISK)
   const ram = getMetric(metrics, METRIC_RAM)
-  const youtubeMetrics = youtubeSnapshot?.metrics ?? []
-  const viewCount = getMetric(youtubeMetrics, METRIC_TOTAL_STREAMS)?.value ?? 0
-  const likeCount = getMetric(youtubeMetrics, METRIC_LIKE_COUNT)?.value ?? 0
 
   const tc = thresholds.thread_count ?? 300
   const rc = thresholds.ram_percent ?? 85
@@ -93,10 +86,6 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
   const threadWarning = Math.floor(tc * wf)
   const ramWarning = Math.floor(rc * wf)
   const diskWarning = Math.floor(dc * wf)
-
-  useEffect(() => {
-    if (view === 'live' && onLiveData) onLiveData({ likeCount, viewCount })
-  }, [view, likeCount, viewCount, onLiveData])
 
   return (
     <div className="boat-dashboard-panel boat-dashboard-panel--live">

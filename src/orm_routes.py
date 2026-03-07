@@ -159,9 +159,10 @@ def upload_snapshot():
 
 @orm_bp.route("/snapshots", methods=["GET"])
 def orm_list_snapshots():
-    """GET /orm/snapshots — list snapshots (optional ?device=, ?limit=, ?expand=metrics)."""
+    """GET /orm/snapshots — list snapshots (optional ?device=, ?limit=, ?since=, ?expand=metrics)."""
     device_filter = request.args.get("device")
     expand_metrics = request.args.get("expand") == "metrics"
+    since_iso = request.args.get("since")  # ISO 8601, e.g. 7 days ago
     try:
         limit = min(int(request.args.get("limit", 50)), 200)
     except ValueError:
@@ -182,6 +183,9 @@ def orm_list_snapshots():
         )
         if device_filter:
             stmt = stmt.join(Snapshot.device).where(Device.device_id == device_filter)
+        if since_iso and since_iso.strip():
+            # ISO 8601 strings sort correctly; filter snapshots from this time onward
+            stmt = stmt.where(Snapshot.timestamp_utc >= since_iso.strip())
 
         snapshots = session.scalars(stmt).all()
         result = (
@@ -191,8 +195,8 @@ def orm_list_snapshots():
         )
 
     logger.info(
-        "GET /orm/snapshots – returning %d snapshots (filter=%r, expand=%s)",
-        len(result), device_filter, "metrics" if expand_metrics else "no",
+        "GET /orm/snapshots – returning %d snapshots (filter=%r, since=%r, expand=%s)",
+        len(result), device_filter, since_iso or "none", "metrics" if expand_metrics else "no",
     )
     return _json_response(result, 200)
 
