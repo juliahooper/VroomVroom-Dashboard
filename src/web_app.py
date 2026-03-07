@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from flask import Flask, current_app
+from flask import Flask, current_app, redirect, send_from_directory
 
 from .blocktimer import BlockTimer
 from .configlib import AppConfig, ConfigError, load_config, load_mobile_config, setup_logging
@@ -53,6 +53,23 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
 def register_routes(app: Flask) -> None:
     """Register all URL routes on the Flask app."""
+    _project_root = Path(__file__).resolve().parent.parent
+    _frontend_dist = _project_root / "frontend" / "dist"
+
+    # Serve built React dashboard at /dashboard/ (if frontend/dist exists)
+    if _frontend_dist.exists():
+        @app.route("/dashboard")
+        def redirect_dashboard():
+            return redirect("/dashboard/")
+
+        @app.route("/dashboard/")
+        def serve_dashboard_index():
+            return send_from_directory(_frontend_dist, "index.html")
+
+        @app.route("/dashboard/<path:path>")
+        def serve_dashboard_assets(path: str):
+            return send_from_directory(_frontend_dist, path)
+
     # Raw SQL snapshot routes only when using local SQLite (no DATABASE_URL)
     if not os.environ.get("DATABASE_URL"):
         from .snapshots import snapshots_bp

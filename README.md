@@ -162,6 +162,19 @@ pip install -r requirements.txt
 sudo ufw allow 5000/tcp
 ```
 
+### Build the dashboard (on VM, after pulling frontend changes)
+
+Flask serves the built React app at `/dashboard/` if `frontend/dist` exists. Build it on the VM (requires Node.js):
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+If Node.js is not installed: `sudo apt install nodejs npm` (or use nvm).
+
 ### Run the web server
 
 **Development:** `python -m src.web_app`
@@ -181,7 +194,9 @@ Press **Ctrl+B then D** to detach. Reconnect: `tmux attach -t vroomvroom`.
 
 ### Test in browser
 
-`http://200.69.13.70:5000/hello` · `http://200.69.13.70:5000/health` · `http://200.69.13.70:5000/metrics` · `http://200.69.13.70:5000/youtube/vroom-vroom` (requires `YOUTUBE_API_KEY` on the server)
+- **API:** `http://200.69.13.70:5000/hello` · `http://200.69.13.70:5000/health` · `http://200.69.13.70:5000/metrics`
+- **Dashboard (gauges, charts):** `http://200.69.13.70:5000/dashboard/` (requires `frontend/dist` to exist; run `npm run build` in `frontend/` first)
+- **YouTube:** `http://200.69.13.70:5000/youtube/vroom-vroom` (requires `YOUTUBE_API_KEY` on the server)
 
 **Terminal tips:** Paste in SSH: Ctrl+Shift+V. Copy: Ctrl+Shift+C.
 
