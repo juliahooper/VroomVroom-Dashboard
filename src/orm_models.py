@@ -2,10 +2,14 @@
 SQLAlchemy ORM models for VroomVroom — same four tables as database.py.
 
 Use get_session() for RAII; use joinedload/selectinload in queries to avoid N+1.
+
+When DATABASE_URL is set (PostgreSQL on our VM), the app uses that DB;
+otherwise it uses local SQLite (data/vroomvroom.db).
 """
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 from pathlib import Path
 from typing import Iterator
@@ -28,26 +32,33 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
-# Use the same database file as the raw SQL layer
-_DEFAULT_DB_PATH = str(Path(__file__).parent.parent / "data" / "vroomvroom.db")
-_DB_PATH: str = os.environ.get("VROOMVROOM_DB", _DEFAULT_DB_PATH)
+logger = logging.getLogger(__name__)
 
 # Step 5 – enable SQL logging to inspect generated queries (set VROOMVROOM_SQL_ECHO=1)
 _SQL_ECHO = os.environ.get("VROOMVROOM_SQL_ECHO", "").lower() in ("1", "true", "yes")
 
-# SQLite: timeout so concurrent writers wait instead of failing with BUSY (seconds)
-_SQLITE_TIMEOUT = 15
-# SQLAlchemy engine – connects to the same SQLite file as raw SQL
-_engine = create_engine(
-    f"sqlite:///{_DB_PATH}",
-    echo=_SQL_ECHO,
-    connect_args={"timeout": _SQLITE_TIMEOUT},
-)
+_DATABASE_URL: str | None = os.environ.get("DATABASE_URL")
+_DEFAULT_DB_PATH = str(Path(__file__).parent.parent / "data" / "vroomvroom.db")
+_DB_PATH: str = os.environ.get("VROOMVROOM_DB", _DEFAULT_DB_PATH)
 
-# Enable foreign key enforcement for every SQLite connection opened by the engine
-@event.listens_for(_engine, "connect")
-def _set_sqlite_pragma(dbapi_conn, _):
-    dbapi_conn.execute("PRAGMA foreign_keys = ON")
+if _DATABASE_URL:
+    # PostgreSQL on our VM: use postgresql+psycopg2:// so SQLAlchemy uses the right driver
+    _url = _DATABASE_URL
+    if _url.startswith("postgresql://") and "postgresql+" not in _url:
+        _url = _url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    _engine = create_engine(_url, echo=_SQL_ECHO)
+else:
+    # Local SQLite
+    _SQLITE_TIMEOUT = 15
+    _engine = create_engine(
+        f"sqlite:///{_DB_PATH}",
+        echo=_SQL_ECHO,
+        connect_args={"timeout": _SQLITE_TIMEOUT},
+    )
+
+    @event.listens_for(_engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, _):
+        dbapi_conn.execute("PRAGMA foreign_keys = ON")
 
 # Session factory – call _SessionFactory() to get a new Session
 _SessionFactory = sessionmaker(bind=_engine)
@@ -223,3 +234,35 @@ def create_session() -> Session:
     commit/rollback (e.g. demonstrating session.rollback()).
     """
     return _SessionFactory()
+
+
+# ---------------------------------------------------------------------------
+# Cloud DB init (PostgreSQL) – create tables and seed metric_type
+# ---------------------------------------------------------------------------
+
+def init_pg_db() -> None:
+    """
+    Create all tables and seed metric_type. Call when DATABASE_URL is set
+    Safe to call on every startup (CREATE TABLE IF NOT EXISTS;
+    INSERT ON CONFLICT DO NOTHING; UPDATE for units).
+    """
+    from sqlalchemy import text
+
+    from .db_seed import SEED_METRIC_TYPES
+
+    Base.metadata.create_all(_engine)
+    with _engine.connect() as conn:
+        with conn.begin():
+            for name, unit in SEED_METRIC_TYPES:
+                conn.execute(
+                    text(
+                        "INSERT INTO metric_type (name, unit) VALUES (:name, :unit) "
+                        "ON CONFLICT (name) DO NOTHING"
+                    ),
+                    {"name": name, "unit": unit},
+                )
+                conn.execute(
+                    text("UPDATE metric_type SET unit = :unit WHERE name = :name"),
+                    {"unit": unit, "name": name},
+                )
+    logger.info("PostgreSQL database initialised (DATABASE_URL)")

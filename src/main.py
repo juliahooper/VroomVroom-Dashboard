@@ -93,8 +93,10 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(config)
     logger = logging.getLogger(__name__)
 
-    # Agent mode: continuous loop, upload via API, graceful shutdown
+    # Agent mode: continuous loop, upload via API (system metrics + YouTube), graceful shutdown
     if args.agent:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # for YOUTUBE_API_KEY
         interval = args.interval if args.interval is not None else config.read_interval_seconds
         if interval <= 0:
             logger.error("Interval must be positive (got %s)", interval)
@@ -102,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         api_url = os.environ.get("VROOMVROOM_API_URL", "http://127.0.0.1:5000")
         try:
             from .collector_agent import run_agent
-            run_agent(config, interval_seconds=interval, api_base_url=api_url)
+            run_agent(config, interval_seconds=interval, api_base_url=api_url, config_path=config_path)
         except Exception as e:
             logger.error("Agent failed: %s", e, exc_info=True)
             logging.shutdown()

@@ -234,6 +234,13 @@ def load_mobile_config(config_path: str | Path) -> MobileConfig | None:
     creds_path = mobile.get("firebase_credentials_path")
     if creds_path is not None and not (isinstance(creds_path, str) and creds_path.strip()):
         raise ConfigError("Key 'mobile.firebase_credentials_path' must be a non-empty string or omitted.")
+    # Resolve relative to config file's directory so it works from any cwd
+    if creds_path and creds_path.strip():
+        p = Path(creds_path.strip())
+        if not p.is_absolute():
+            creds_path = str((path.resolve().parent / creds_path.strip()).resolve())
+        else:
+            creds_path = creds_path.strip()
 
     collections_raw = mobile.get("collections")
     if not isinstance(collections_raw, dict):
@@ -283,7 +290,7 @@ def load_mobile_config(config_path: str | Path) -> MobileConfig | None:
 
     return MobileConfig(
         enabled=True,
-        firebase_credentials_path=creds_path.strip() if creds_path else None,
+        firebase_credentials_path=creds_path if creds_path else None,
         collections=collections,
         time_series_sources=tuple(time_series_sources),
         count_sources=tuple(count_sources),

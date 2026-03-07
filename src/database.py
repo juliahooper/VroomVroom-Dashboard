@@ -137,7 +137,13 @@ def init_db() -> None:
     Create the data/ directory, all tables, and seed metric_type rows.
     Safe to call every time the app starts (CREATE TABLE IF NOT EXISTS /
     INSERT OR IGNORE ensures no duplicate setup).
+    When DATABASE_URL is set, use PostgreSQL (ORM init) instead of local SQLite.
     """
+    if os.environ.get("DATABASE_URL"):
+        from .orm_models import init_pg_db
+        init_pg_db()
+        return
+
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
     # RAII: contextlib.closing guarantees conn.close() is called

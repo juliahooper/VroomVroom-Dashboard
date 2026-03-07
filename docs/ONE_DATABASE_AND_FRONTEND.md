@@ -1,6 +1,6 @@
 # One Database for All Sources and Front End
 
-All data from **Device 1 (PC)**, **3rd party (YouTube stream count)**, and **mobile (Firebase)** is stored in the **same SQLite database** (`data/vroomvroom.db`). The front end can read from one place.
+All data from **Device 1 (PC)**, **3rd party (YouTube stream count)**, and **mobile (Firebase)** is stored in the **same database** — either PostgreSQL on our VM (when `DATABASE_URL` is set) or local SQLite (`data/vroomvroom.db`) otherwise. The front end reads from one place.
 
 ---
 
@@ -28,7 +28,7 @@ Same tables (`device`, `snapshot`, `snapshot_metric`, `metric_type`). Filter by 
 
 ## 3. Metric types (all in one DB)
 
-Seeded in `src/database.py`:
+Seeded from `src/db_seed.py` (used by both raw SQL and ORM):
 
 - **PC:** Running Threads, RAM Usage, Disk Usage (%).
 - **3rd party:** Stream Count (YouTube view/like count).
