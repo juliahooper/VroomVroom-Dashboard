@@ -116,6 +116,20 @@ Leave this running; the database will fill with data over time.
 
 ---
 
+## 8. Frontend (optional)
+
+The React dashboard is served by Flask at `/dashboard/` when `frontend/dist` exists. For development with hot reload:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5176/dashboard/`. Vite proxies `/orm` and `/health` to the backend. See `frontend/README.md` for details (proxy config when backend runs on VM).
+
+---
+
 ## Quick reference
 
 | Step | Command / action |
@@ -127,5 +141,6 @@ Leave this running; the database will fill with data over time.
 | 5 | `python -m src.web_app` → leave running |
 | 6 | In another terminal: `python -m src.main --agent` → leave running |
 | 7 | Check `/health`, `/orm/devices`, `/orm/snapshots` |
+| 8 | (Optional) `cd frontend && npm install && npm run dev` → `http://localhost:5176/dashboard/` |
 
 Once the web app and agent are both running, the database will keep being populated with PC, YouTube, and (if enabled) mobile data.

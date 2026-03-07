@@ -4,9 +4,11 @@ PoC monitor: reads OS metrics, builds a structured snapshot, and serialises to J
 
 ## Requirements
 
-Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (web app), **gunicorn** (production WSGI), **sqlalchemy** (ORM), **requests** (YouTube API), **python-dotenv** (.env loading). Install once in a venv.
+Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (web app), **gunicorn** (production WSGI), **sqlalchemy** (ORM), **requests** (YouTube API), **python-dotenv** (.env loading), **psycopg2-binary** (PostgreSQL when `DATABASE_URL` is set), **firebase-admin** (mobile/Firestore when enabled). Install once in a venv.
 
 ## Setup
+
+For step-by-step setup (env, config, DB, collectors), see **`docs/GETTING_STARTED.md`**.
 
 1. **Python** — [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12`.
 
@@ -14,10 +16,10 @@ Python packages (see `requirements.txt`): **psutil** (OS metrics), **flask** (we
 
    ```bash
    cd VroomVroom-Dashboard
-   python -m venv venv
+   python -m venv .venv
    ```
 
-   Activate (each new terminal): **Windows** `venv\Scripts\activate` · **Linux/macOS** `source venv/bin/activate`. Prompt shows `(venv)`.
+   Activate (each new terminal): **Windows** `.venv\Scripts\activate` · **Linux/macOS** `source .venv/bin/activate`. Prompt shows `(.venv)`.
 
 3. **Dependencies:**
 
@@ -170,8 +172,8 @@ ssh -i "C:\Users\user\.ssh\juliapk" -p 2210 student@200.69.13.70
 
 ```bash
 cd VroomVroom-Dashboard
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 sudo ufw allow 5000/tcp
 ```
@@ -199,7 +201,7 @@ If Node.js is not installed: `sudo apt install nodejs npm` (or use nvm).
 
 ```bash
 cd VroomVroom-Dashboard
-source venv/bin/activate
+source .venv/bin/activate
 tmux new -s vroomvroom
 gunicorn wsgi:application --bind 0.0.0.0:5000 --workers 2
 ```
@@ -240,7 +242,9 @@ VroomVroom-Dashboard/
 │   ├── API_DESIGN.md
 │   ├── BACKUP_AND_FAILED_REPLAY.md   # Backup log, retries, concurrent writes, replay script
 │   ├── DATA_MODEL.md
+│   ├── DATABASE_CLOUD.md      # PostgreSQL on VM setup
 │   ├── EXECUTION_ORDER.md
+│   ├── GETTING_STARTED.md     # Step-by-step setup and run
 │   ├── ONE_DATABASE_AND_FRONTEND.md   # One DB for PC, YouTube, mobile; front-end APIs
 │   └── SCHEMA_DESIGN.md
 ├── src/
@@ -265,6 +269,7 @@ VroomVroom-Dashboard/
 │   ├── mobile_routes.py       # GET /mobile/locations, /mobile/snapshot, etc.
 │   ├── mobile_snapshot_bridge.py   # Mobile → unified Snapshot shape
 │   ├── backfill_mobile.py          # One-time: load historical Firebase data into DB
+│   ├── db_seed.py                  # Metric type seeding (used by init_db)
 │   ├── blocktimer/
 │   ├── configlib/             # Config + logging
 │   ├── datasnapshot/          # Snapshot domain model + JSON
@@ -277,6 +282,7 @@ VroomVroom-Dashboard/
 │   ├── run_all_collectors.py  # Run YouTube + mobile collectors once (web app must be up)
 │   ├── replay_failed_snapshots.py    # Replay data/failed_snapshots.jsonl into DB
 │   ├── verify_indexes.py
+│   ├── verify_mobile_data.py  # Verify mobile/Firestore config and data
 │   └── performance_scan_vs_search.py
 ├── logs/
 └── README.md
@@ -290,6 +296,7 @@ VroomVroom-Dashboard/
 | `python scripts/run_all_collectors.py` | Run 3rd party (YouTube) and mobile (Firebase) collectors once; web app must be running. |
 | `python scripts/replay_failed_snapshots.py` | Replay `data/failed_snapshots.jsonl` into the DB after fixing transient failures. See `docs/BACKUP_AND_FAILED_REPLAY.md`. |
 | `python scripts/verify_indexes.py` | Ensure DB and indexes exist (init_db). |
+| `python scripts/verify_mobile_data.py` | Verify mobile/Firestore config and data. |
 | `python scripts/performance_scan_vs_search.py` | Index vs search performance check; leaves DB with indexes restored. |
 
 **Docs:** See `docs/README.md` for an index of all design and runbook docs.
