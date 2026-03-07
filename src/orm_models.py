@@ -266,4 +266,8 @@ def init_pg_db() -> None:
                     text("UPDATE metric_type SET unit = :unit WHERE name = :name"),
                     {"unit": unit, "name": name},
                 )
+            # Remove Lough Owel from location table if present (no longer in SEED_LOCATIONS)
+            conn.execute(
+                text("DELETE FROM location WHERE id IN ('loc_lough_owel', 'loc_lough_owell')")
+            )
     logger.info("PostgreSQL database initialised (DATABASE_URL)")

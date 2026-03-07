@@ -160,9 +160,9 @@ export default function GaugeTachometer({
               </text>
             )
           })}
-          {/* "RPM" above center */}
+          {/* Metric label above center */}
           <text x={cx} y={cy - 6} textAnchor="middle" className="boat-gauge-tach__rpm-label" fill="rgba(255,255,255,0.85)">
-            RPM
+            {label}
           </text>
           {/* "threads" below (like "x1000") */}
           <text x={cx} y={cy + 10} textAnchor="middle" className="boat-gauge-tach__unit-label" fill="rgba(255,255,255,0.5)">

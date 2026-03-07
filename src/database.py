@@ -160,9 +160,9 @@ def init_db() -> None:
                 except sqlite3.OperationalError as e:
                     if "duplicate column name" not in str(e).lower():
                         raise
-            # Step 3b: Remove old demo locations (Dublin, Cork, Galway) if present.
+            # Step 3b: Remove old demo locations (Dublin, Cork, Galway) and Lough Owel if present.
             conn.execute(
-                "DELETE FROM location WHERE id IN ('loc_dublin', 'loc_cork', 'loc_galway')"
+                "DELETE FROM location WHERE id IN ('loc_dublin', 'loc_cork', 'loc_galway', 'loc_lough_owel', 'loc_lough_owell')"
             )
             # Step 3c: Seed swim spots (IDs match Firebase mobile:loc_xxx). REPLACE updates existing.
             from .db_seed import SEED_LOCATIONS

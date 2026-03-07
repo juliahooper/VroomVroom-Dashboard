@@ -14,8 +14,8 @@ const X_OFFSET = -5 // shift markers left so they sit on land
 
 // Per-location nudge (x, y) in % – move markers that appear in the sea onto land
 const MARKER_OFFSETS = {
-  loc_lough_dan: { x: -7, y: 0 },
-  loc_lough_tay: { x: -7, y: 0 },
+  loc_lough_dan: { x: -10, y: 0 },
+  loc_lough_tay: { x: -10, y: 0 },
 }
 
 /** Convert lat/lng to percentage position on Blank Ireland.svg */

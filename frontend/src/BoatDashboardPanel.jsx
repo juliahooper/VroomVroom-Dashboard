@@ -104,36 +104,38 @@ export default function BoatDashboardPanel({ view, onLiveData, selectedLocation 
         {error && <div className="boat-dashboard-panel__error">{error}</div>}
         {loading && <div className="boat-dashboard-panel__loading">Loading…</div>}
         {!loading && !error && (
-          <div className="boat-gauges-row">
-            <div className="boat-gauge-wrap boat-gauge-wrap--left">
-              <GaugeTachometer
-                value={threads?.value ?? 0}
-                dangerThreshold={tc}
-                warningThreshold={threadWarning}
-                max={Math.max(400, Math.ceil(tc * 1.2))}
-                label="RPM"
-                unit="threads"
-              />
-            </div>
-            <div className="boat-gauge-wrap boat-gauge-wrap--center">
-              <GaugeSpeedometer
-                value={disk?.value ?? 0}
-                dangerThreshold={dc}
-                warningThreshold={diskWarning}
-                max={Math.max(100, Math.ceil(dc * 1.2))}
-                label="Disk"
-                unit="%"
-              />
-            </div>
-            <div className="boat-gauge-wrap boat-gauge-wrap--right">
-              <GaugeFuel
-                value={ram?.value ?? 0}
-                dangerThreshold={rc}
-                warningThreshold={ramWarning}
-                max={100}
-                label="Fuel"
-                unit="%"
-              />
+          <div className="boat-gauges-layout">
+            <div className="boat-gauges-row">
+              <div className="boat-gauge-wrap boat-gauge-wrap--left boat-gauge-wrap--large">
+                <GaugeTachometer
+                  value={threads?.value ?? 0}
+                  dangerThreshold={tc}
+                  warningThreshold={threadWarning}
+                  max={Math.max(400, Math.ceil(tc * 1.2))}
+                  label="Processes"
+                  unit="threads"
+                />
+              </div>
+              <div className="boat-gauge-wrap boat-gauge-wrap--center boat-gauge-wrap--large">
+                <GaugeFuel
+                  value={ram?.value ?? 0}
+                  dangerThreshold={rc}
+                  warningThreshold={ramWarning}
+                  max={100}
+                  label={METRIC_RAM}
+                  unit="%"
+                />
+              </div>
+              <div className="boat-gauge-wrap boat-gauge-wrap--right boat-gauge-wrap--large">
+                <GaugeSpeedometer
+                  value={disk?.value ?? 0}
+                  dangerThreshold={dc}
+                  warningThreshold={diskWarning}
+                  max={Math.max(100, Math.ceil(dc * 1.2))}
+                  label={METRIC_DISK}
+                  unit="%"
+                />
+              </div>
             </div>
           </div>
         )}

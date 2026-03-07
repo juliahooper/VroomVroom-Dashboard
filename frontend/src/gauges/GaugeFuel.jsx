@@ -113,7 +113,7 @@ export default function GaugeFuel({
               <text key={num} x={cx + labelR * Math.cos(rad)} y={cy - labelR * Math.sin(rad)} textAnchor="middle" dominantBaseline="middle" className="boat-gauge__number" fill="rgba(255,255,255,0.95)">{num}</text>
             )
           })}
-          <text x={cx} y={cy - 6} textAnchor="middle" className="boat-gauge__center-label" fill="rgba(255,255,255,0.85)">FUEL</text>
+          <text x={cx} y={cy - 6} textAnchor="middle" className="boat-gauge__center-label" fill="rgba(255,255,255,0.85)">{label}</text>
           <text x={cx} y={cy + 10} textAnchor="middle" className="boat-gauge__unit-label" fill="rgba(255,255,255,0.5)">{unit}</text>
           <line x1={cx} y1={cy} x2={ex} y2={ey} stroke="#ff9800" strokeWidth="2" strokeLinecap="round" style={{ transition: 'all 0.3s ease-out', filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))' }} />
           <circle cx={cx} cy={cy} r="5" fill="#1a1a1a" stroke="#333" strokeWidth="1" />
