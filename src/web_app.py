@@ -5,7 +5,7 @@ At entry point: initialise config, initialise logging, register routes, then run
 - GET /hello   → returns the text "Hello World"
 - GET /health  → returns "OK" and status 200
 - GET /metrics → returns JSON (cached with TTL; one thread updates, others serve cache).
-- GET /youtube/vroom-vroom → fetches current view count from YouTube API, stores snapshot, returns JSON (on-demand).
+- GET /youtube/vroom-vroom → fetches current view count from YouTube API, stores snapshot, returns JSON (on-demand). Scheduled collection is done by the collector agent at the same interval as system metrics.
 
 Run: python -m src.web_app  (or gunicorn for production).
 """
@@ -18,6 +18,10 @@ import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Load .env first so DATABASE_URL is set before database/orm_models are imported
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from flask import Flask, current_app, redirect, send_from_directory
 
@@ -66,9 +70,10 @@ def register_routes(app: Flask) -> None:
         def serve_dashboard_assets(path: str):
             return send_from_directory(_frontend_dist, path)
 
-    # Register Snapshots CRUD blueprint – raw SQL (POST/GET/PUT/DELETE /snapshots)
-    from .snapshots import snapshots_bp
-    app.register_blueprint(snapshots_bp)
+    # Raw SQL snapshot routes only when using local SQLite (no DATABASE_URL)
+    if not os.environ.get("DATABASE_URL"):
+        from .snapshots import snapshots_bp
+        app.register_blueprint(snapshots_bp)
 
     # Register ORM blueprint – SQLAlchemy (POST/GET /orm/snapshots, GET /orm/devices)
     from .orm_routes import orm_bp
@@ -145,16 +150,16 @@ def register_routes(app: Flask) -> None:
     @app.route("/youtube/vroom-vroom")
     def youtube_vroom_vroom():
         """
-        GET /youtube/vroom-vroom: fetch current view count from YouTube Data API v3,
-        store as a snapshot (device youtube-vroom-vroom, metric total_streams), return JSON.
-        On-demand only; requires YOUTUBE_API_KEY environment variable.
+        GET /youtube/vroom-vroom: fetch view count and like count from YouTube Data API v3,
+        store as a snapshot (device youtube-vroom-vroom, metrics total_streams + Like Count), return JSON.
+        On-demand only; scheduled collection is done by the collector agent. Requires YOUTUBE_API_KEY.
         """
         from .orm_dto import snapshot_from_dto
         from .orm_models import get_session
-        from .youtube_fetcher import YouTubeFetcherError, get_view_count
+        from .youtube_fetcher import YouTubeFetcherError, get_video_statistics
 
         try:
-            view_count = get_view_count()
+            stats = get_video_statistics()
         except YouTubeFetcherError as e:
             logger.warning("YouTube fetch failed: %s", e)
             return _json_response({"error": str(e)}, 503)
@@ -164,25 +169,22 @@ def register_routes(app: Flask) -> None:
             "device_id": "youtube-vroom-vroom",
             "timestamp_utc": timestamp_utc.isoformat(),
             "metrics": [
-                {
-                    "name": "total_streams",
-                    "value": float(view_count),
-                    "unit": "count",
-                    "status": "normal",
-                }
+                {"name": "total_streams", "value": float(stats["view_count"]), "unit": "count", "status": "normal"},
+                {"name": "Like Count", "value": float(stats["like_count"]), "unit": "count", "status": "normal"},
             ],
         }
         try:
             with get_session() as session:
                 snapshot = snapshot_from_dto(dto, session)
-                # Build response in same spirit as /metrics
                 response_obj = {
                     "timestamp_utc": timestamp_utc.isoformat(),
                     "device_id": "youtube-vroom-vroom",
-                    "total_streams": view_count,
+                    "total_streams": stats["view_count"],
+                    "like_count": stats["like_count"],
                     "snapshot_id": snapshot.id,
                     "metrics": [
-                        {"name": "total_streams", "value": view_count, "unit": "count", "status": "normal"}
+                        {"name": "total_streams", "value": stats["view_count"], "unit": "count", "status": "normal"},
+                        {"name": "Like Count", "value": stats["like_count"], "unit": "count", "status": "normal"},
                     ],
                 }
         except Exception as e:

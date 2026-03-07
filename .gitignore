@@ -1,6 +1,10 @@
 # App data (runtime)
 data/*.jsonl
 data/*.db-journal
+data/mobile_sync_state.json
+
+# Secrets (never commit)
+config/firebase-service-account.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
