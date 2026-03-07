@@ -5,6 +5,7 @@ Long-running collector agent: continuous timing loop, read metrics, upload via A
 - Start-based scheduling: next run at (loop_start + interval) to avoid drift.
 - Error retry: upload retries with exponential backoff.
 - Graceful shutdown: SIGTERM/SIGINT set a flag; loop exits after current iteration.
+- Stretch goal: polls for commands (e.g. play_alert); when danger, server queues and agent opens YouTube.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import json
 import logging
 import signal
 import time
+import webbrowser
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -26,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_API_URL = "http://127.0.0.1:5000"
 _UPLOAD_PATH = "/orm/upload_snapshot"
+_COMMANDS_PENDING_PATH = "/orm/commands/pending"
+_VROOM_VROOM_VIDEO_URL = "https://www.youtube.com/watch?v=qfAqtFuGjWM"
 
 
 def _upload_snapshot_once(api_base_url: str, dto: dict) -> None:
@@ -72,6 +76,38 @@ def upload_snapshot_with_retry(
                 time.sleep(delay)
     if last_error:
         raise last_error
+
+
+def _poll_and_execute_commands(api_base_url: str, device_id: str) -> None:
+    """
+    Poll for pending commands and execute them. Stretch goal: play_alert opens YouTube.
+    """
+    url = f"{api_base_url.rstrip('/')}{_COMMANDS_PENDING_PATH}?device_id={device_id}"
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, method="GET"), timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as e:
+        logger.debug("Command poll failed: %s", e)
+        return
+
+    commands = data.get("commands") or []
+    for c in commands:
+        cmd_id = c.get("id")
+        cmd_name = c.get("command")
+        if cmd_id is None or not cmd_name:
+            continue
+        try:
+            if cmd_name == "play_alert":
+                webbrowser.open(_VROOM_VROOM_VIDEO_URL)
+                logger.info("Executed play_alert: opened Vroom Vroom video")
+            ack_url = f"{api_base_url.rstrip('/')}/orm/commands/{cmd_id}/ack"
+            with urllib.request.urlopen(
+                urllib.request.Request(ack_url, method="POST"),
+                timeout=5,
+            ) as _:
+                pass
+        except Exception as e:
+            logger.warning("Command %d (%s) failed: %s", cmd_id, cmd_name, e)
 
 
 def run_agent(
@@ -133,6 +169,12 @@ def run_agent(
                 "Cycle %d: uploaded snapshot %s (%d metrics)",
                 cycle, snapshot.timestamp_utc.isoformat(), len(snapshot.metrics),
             )
+
+            # Stretch goal: poll for commands (e.g. play_alert when server detected danger)
+            try:
+                _poll_and_execute_commands(api, device_id)
+            except Exception as e:
+                logger.warning("Command poll/execute failed: %s", e)
 
             # YouTube: same interval (view count + like count = 2 metrics for 3rd party)
             try:

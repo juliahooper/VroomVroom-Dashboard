@@ -144,3 +144,9 @@ Open `http://localhost:5176/dashboard/`. Vite proxies `/orm` and `/health` to th
 | 8 | (Optional) `cd frontend && npm install && npm run dev` → `http://localhost:5176/dashboard/` |
 
 Once the web app and agent are both running, the database will keep being populated with PC, YouTube, and (if enabled) mobile data.
+
+---
+
+## Stretch goal: threshold alert (open YouTube)
+
+When a PC metric (threads, RAM, disk) reaches **danger** threshold, the server queues a `play_alert` command. The collector agent polls for it and opens the Vroom Vroom music video in your browser. To test: temporarily lower thresholds in `config/config.json` (e.g. `"thread_count": 10`) so you hit danger quickly.

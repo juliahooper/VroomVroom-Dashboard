@@ -10,6 +10,7 @@ import logging
 import threading
 import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, request
 from sqlalchemy import func, select
@@ -26,7 +27,7 @@ from .orm_dto import (
     validate_snapshot_upload_dto,
 )
 from .mobile_snapshot_bridge import MOBILE_DEVICE_ID_PREFIX
-from .orm_models import Device, Snapshot, SnapshotMetric, get_session
+from .orm_models import Device, DeviceCommand, Snapshot, SnapshotMetric, get_session
 from .snapshot_backup import append_backup, append_failed
 from .web_app import APP_CONFIG_KEY, _json_response
 
@@ -136,6 +137,30 @@ def upload_snapshot():
                     snapshot = snapshot_from_dto(dto, session)
                     summary = snapshot_to_summary_dto(snapshot)
                     summary["uploaded"] = True
+
+                    # Stretch goal: when any metric is danger, queue play_alert for PC devices
+                    device_id_str = str(dto.get("device_id") or "")
+                    is_pc = device_id_str != "youtube-vroom-vroom" and not device_id_str.startswith("mobile:")
+                    has_danger = any(m.get("status") == "danger" for m in metrics_in)
+                    if is_pc and has_danger:
+                        existing = session.scalars(
+                            select(DeviceCommand)
+                            .join(Device)
+                            .where(
+                                Device.device_id == device_id_str,
+                                DeviceCommand.command == "play_alert",
+                                DeviceCommand.status == "pending",
+                            )
+                        ).first()
+                        if existing is None:
+                            cmd = DeviceCommand(
+                                device_id=snapshot.device_id,
+                                command="play_alert",
+                                status="pending",
+                                created_at=datetime.now(timezone.utc).isoformat(),
+                            )
+                            session.add(cmd)
+                            logger.info("POST /orm/upload_snapshot – queued play_alert for device %s (danger)", device_id_str)
                 append_backup(dto)
             logger.info(
                 "POST /orm/upload_snapshot – stored id=%d device=%s metric_count=%d",
@@ -357,7 +382,50 @@ def orm_list_locations():
 
 
 # ---------------------------------------------------------------------------
-# 6. Danger thresholds for gauges — GET /orm/thresholds
+# 6. Device commands (stretch goal) — poll and ack
+# ---------------------------------------------------------------------------
+
+@orm_bp.route("/commands/pending", methods=["GET"])
+def orm_commands_pending():
+    """GET /orm/commands/pending?device_id=pc-01 — list pending commands for device. Agent polls this."""
+    device_filter = request.args.get("device_id") or request.args.get("device")
+    if not device_filter or not str(device_filter).strip():
+        return _json_response({"error": "device_id query parameter required"}, 400)
+
+    with get_session() as session:
+        stmt = (
+            select(DeviceCommand)
+            .join(Device)
+            .where(
+                Device.device_id == device_filter.strip(),
+                DeviceCommand.status == "pending",
+            )
+            .order_by(DeviceCommand.id.asc())
+        )
+        commands = session.scalars(stmt).all()
+
+    result = {"commands": [{"id": c.id, "command": c.command} for c in commands]}
+    if commands:
+        logger.info("GET /orm/commands/pending – device=%r returning %d commands", device_filter, len(commands))
+    return _json_response(result, 200)
+
+
+@orm_bp.route("/commands/<int:cmd_id>/ack", methods=["POST"])
+def orm_command_ack(cmd_id: int):
+    """POST /orm/commands/<id>/ack — mark command as executed. Agent calls after acting."""
+    with get_session() as session:
+        cmd = session.get(DeviceCommand, cmd_id)
+        if cmd is None:
+            return _json_response({"error": f"Command {cmd_id} not found"}, 404)
+        if cmd.status != "pending":
+            return _json_response({"error": f"Command {cmd_id} already {cmd.status}"}, 400)
+        cmd.status = "executed"
+        logger.info("POST /orm/commands/%d/ack – marked executed", cmd_id)
+    return _json_response({"id": cmd_id, "status": "executed"}, 200)
+
+
+# ---------------------------------------------------------------------------
+# 7. Danger thresholds for gauges — GET /orm/thresholds
 # ---------------------------------------------------------------------------
 
 @orm_bp.route("/thresholds", methods=["GET"])

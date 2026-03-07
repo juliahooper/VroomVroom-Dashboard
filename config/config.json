@@ -4,7 +4,7 @@
   "read_interval_seconds": 1200,
   "log_level": "INFO",
   "log_file_path": "logs/app.log",
-  "danger_thresholds": { "thread_count":300, "ram_percent": 85, "disk_usage_percent":90 },
+  "danger_thresholds": { "thread_count":50, "ram_percent": 85, "disk_usage_percent":90 },
   "server_host": "127.0.0.1",
   "server_port": 54545,
   "sql_echo": false,

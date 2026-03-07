@@ -64,6 +64,16 @@ CREATE TABLE IF NOT EXISTS snapshot_metric (
     PRIMARY KEY (snapshot_id, metric_type_id)
 );
 
+-- device_command: stretch goal – server sends commands to devices (e.g. play_alert = open YouTube).
+-- Agent polls GET /orm/commands/pending and executes; acks via POST /orm/commands/<id>/ack.
+CREATE TABLE IF NOT EXISTS device_command (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id  INTEGER NOT NULL REFERENCES device(id) ON DELETE CASCADE,
+    command    TEXT    NOT NULL,
+    status     TEXT    NOT NULL CHECK (status IN ('pending', 'executed', 'failed')),
+    created_at TEXT    NOT NULL
+);
+
 -- location: map markers (e.g. Irish locations). id matches mobile location_id (e.g. loc_lough_dan).
 -- cold_water_shock_risk_score: 0–100 or similar scale; alert_count: number of active alerts.
 CREATE TABLE IF NOT EXISTS location (
@@ -91,6 +101,8 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_metric_snapshot_id
     ON snapshot_metric(snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_snapshot_metric_metric_type_id
     ON snapshot_metric(metric_type_id);
+CREATE INDEX IF NOT EXISTS idx_device_command_device_status
+    ON device_command(device_id, status);
 """
 
 # Metric types – inserted once when the DB is first created.

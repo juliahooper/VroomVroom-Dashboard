@@ -92,6 +92,12 @@ class Device(Base):
         cascade="all, delete-orphan",
         lazy="select",  # lazy load: query when device.snapshots is first accessed
     )
+    commands: Mapped[list[DeviceCommand]] = relationship(
+        "DeviceCommand",
+        back_populates="device",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
 
     def __repr__(self) -> str:
         return f"<Device id={self.id} device_id={self.device_id!r} label={self.label!r}>"
@@ -171,6 +177,29 @@ class SnapshotMetric(Base):
 
     def __repr__(self) -> str:
         return f"<SnapshotMetric snap={self.snapshot_id} type={self.metric_type_id} value={self.value}>"
+
+
+class DeviceCommand(Base):
+    """
+    Maps to the 'device_command' table.
+    Stretch goal: server sends commands to devices (e.g. play_alert = open YouTube when threshold breached).
+    Agent polls GET /orm/commands/pending and executes; acks via POST /orm/commands/<id>/ack.
+    """
+    __tablename__ = "device_command"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'executed', 'failed')", name="chk_device_command_status"),
+    )
+
+    id:         Mapped[int]   = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id:  Mapped[int]   = mapped_column(ForeignKey("device.id"), nullable=False)
+    command:    Mapped[str]  = mapped_column(String, nullable=False)
+    status:    Mapped[str]  = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+    device: Mapped[Device] = relationship("Device", back_populates="commands", lazy="select")
+
+    def __repr__(self) -> str:
+        return f"<DeviceCommand id={self.id} device_id={self.device_id} command={self.command!r} status={self.status!r}>"
 
 
 class Location(Base):
