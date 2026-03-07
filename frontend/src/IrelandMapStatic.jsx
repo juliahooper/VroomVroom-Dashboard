@@ -1,23 +1,21 @@
 /**
  * Static Ireland map with positioned markers.
- * Uses a static image + percentage positioning instead of Leaflet.
- * Simpler and more reliable for marker visibility.
+ * Uses Blank Ireland.svg (User:Angr, CC BY-SA 3.0, via Wikimedia Commons).
+ * Lat/lng converted to % position for the 908×1159 viewBox.
  */
 import { useEffect, useState } from 'react'
 import { fetchLocations } from './api'
 
-// Ireland bounding box (lat/lng)
-const IRELAND_BOUNDS = {
-  latMin: 51.4,
-  latMax: 55.4,
-  lngMin: -10.5,
-  lngMax: -6.0,
-}
+// Blank Ireland.svg: 908×1159, shape has ~3% padding. Map geographic bounds to shape area.
+const IRELAND_BOUNDS = { latMin: 51.4, latMax: 55.4, lngMin: -10.5, lngMax: -6.0 }
+const PADDING = { left: 2.5, right: 2.5, top: 2.5, bottom: 2.5 } // % padding in SVG
 
-/** Convert lat/lng to percentage position (0-100) on the map image */
+/** Convert lat/lng to percentage position on Blank Ireland.svg */
 function latLngToPercent(lat, lng) {
-  const x = ((lng - IRELAND_BOUNDS.lngMin) / (IRELAND_BOUNDS.lngMax - IRELAND_BOUNDS.lngMin)) * 100
-  const y = ((IRELAND_BOUNDS.latMax - lat) / (IRELAND_BOUNDS.latMax - IRELAND_BOUNDS.latMin)) * 100
+  const xNorm = (lng - IRELAND_BOUNDS.lngMin) / (IRELAND_BOUNDS.lngMax - IRELAND_BOUNDS.lngMin)
+  const yNorm = (IRELAND_BOUNDS.latMax - lat) / (IRELAND_BOUNDS.latMax - IRELAND_BOUNDS.latMin)
+  const x = PADDING.left + xNorm * (100 - PADDING.left - PADDING.right)
+  const y = PADDING.top + yNorm * (100 - PADDING.top - PADDING.bottom)
   return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
 }
 
@@ -60,6 +58,7 @@ export default function IrelandMapStatic({ selectedLocationId, onSelectLocation 
           src={`${import.meta.env.BASE_URL}ireland-map.svg`}
           alt="Map of Ireland"
           className="ireland-map-static__image"
+          title="Blank Ireland (User:Angr, CC BY-SA 3.0, via Wikimedia Commons)"
         />
         {locations.map((loc) => {
           const pos = latLngToPercent(loc.lat, loc.lng)
