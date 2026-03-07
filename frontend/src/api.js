@@ -43,7 +43,6 @@ export async function fetchThresholds() {
  * Locations are seeded in backend; metrics come from latest snapshot per mobile:loc_xxx.
  */
 export async function fetchLocations() {
-  const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
   const res = await fetch(`${API_BASE}/orm/locations`)
   if (!res.ok) {
     if (res.status === 404) return []

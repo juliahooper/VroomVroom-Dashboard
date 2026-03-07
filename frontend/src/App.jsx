@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+import { fetchLatestSnapshot, getMetric } from './api'
+import { deviceIdForLocation, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK } from './constants'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
 import ColdWaterShockBadge from './ColdWaterShockBadge'
@@ -12,6 +14,26 @@ export default function App() {
   const [likeCount, setLikeCount] = useState(0)
   const [viewCount, setViewCount] = useState(0)
   const [selectedLocation, setSelectedLocation] = useState(null)
+  const [locationMetrics, setLocationMetrics] = useState(null)
+
+  useEffect(() => {
+    if (!selectedLocation?.id) {
+      setLocationMetrics(null)
+      return
+    }
+    const deviceId = deviceIdForLocation(selectedLocation.id)
+    let cancelled = false
+    fetchLatestSnapshot(deviceId)
+      .then((snapshot) => {
+        if (cancelled) return
+        const metrics = snapshot?.metrics ?? []
+        const risk = getMetric(metrics, METRIC_COLD_WATER_SHOCK)?.value ?? 0
+        const alerts = getMetric(metrics, METRIC_ALERT_COUNT)?.value ?? 0
+        setLocationMetrics({ cold_water_shock_risk_score: risk, alert_count: alerts })
+      })
+      .catch(() => { if (!cancelled) setLocationMetrics(null) })
+    return () => { cancelled = true }
+  }, [selectedLocation?.id])
 
   const handleLiveData = (data) => {
     setLikeCount(data?.likeCount ?? 0)
@@ -42,8 +64,8 @@ export default function App() {
           <div className="dashboard-map-section__metrics">
             {selectedLocation ? (
               <>
-                <ColdWaterShockBadge score={selectedLocation.cold_water_shock_risk_score ?? 0} />
-                <AlertCountBadge count={selectedLocation.alert_count ?? 0} />
+                <ColdWaterShockBadge score={locationMetrics?.cold_water_shock_risk_score ?? selectedLocation.cold_water_shock_risk_score ?? 0} />
+                <AlertCountBadge count={locationMetrics?.alert_count ?? selectedLocation.alert_count ?? 0} />
                 <div className="dashboard-map-section__location-name">
                   {selectedLocation.name}{selectedLocation.county ? `, ${selectedLocation.county}` : ''}
                 </div>
