@@ -3,7 +3,7 @@ import './App.css'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
 import ColdWaterShockBadge from './ColdWaterShockBadge'
-import IrelandMap from './IrelandMap'
+import IrelandMapStatic from './IrelandMapStatic'
 import LikeCountBadge from './LikeCountBadge'
 import ViewCountBadge from './ViewCountBadge'
 
@@ -34,7 +34,7 @@ export default function App() {
         )}
         <section className="dashboard-map-section" aria-label="Location map and metrics">
           <div className="dashboard-map-section__map">
-            <IrelandMap
+            <IrelandMapStatic
               selectedLocationId={selectedLocation?.id}
               onSelectLocation={setSelectedLocation}
             />
