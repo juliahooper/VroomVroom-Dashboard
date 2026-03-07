@@ -19,7 +19,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, current_app
+from flask import Flask, current_app, redirect, send_from_directory
 
 from .blocktimer import BlockTimer
 from .configlib import AppConfig, ConfigError, load_config, load_mobile_config, setup_logging
@@ -49,6 +49,23 @@ def create_app(config: AppConfig | None = None) -> Flask:
 
 def register_routes(app: Flask) -> None:
     """Register all URL routes on the Flask app."""
+    _project_root = Path(__file__).resolve().parent.parent
+    _frontend_dist = _project_root / "frontend" / "dist"
+
+    # Serve built React dashboard at /dashboard/ (if frontend/dist exists)
+    if _frontend_dist.exists():
+        @app.route("/dashboard")
+        def redirect_dashboard():
+            return redirect("/dashboard/")
+
+        @app.route("/dashboard/")
+        def serve_dashboard_index():
+            return send_from_directory(_frontend_dist, "index.html")
+
+        @app.route("/dashboard/<path:path>")
+        def serve_dashboard_assets(path: str):
+            return send_from_directory(_frontend_dist, path)
+
     # Register Snapshots CRUD blueprint – raw SQL (POST/GET/PUT/DELETE /snapshots)
     from .snapshots import snapshots_bp
     app.register_blueprint(snapshots_bp)
