@@ -25,6 +25,7 @@ from .orm_dto import (
     snapshot_to_summary_dto,
     validate_snapshot_upload_dto,
 )
+from .mobile_snapshot_bridge import MOBILE_DEVICE_ID_PREFIX
 from .orm_models import Device, Location, Snapshot, SnapshotMetric, get_session
 from .snapshot_backup import append_backup, append_failed
 from .web_app import APP_CONFIG_KEY, _json_response
@@ -284,24 +285,58 @@ def orm_list_devices():
 # 5. Map locations — GET /orm/locations
 # ---------------------------------------------------------------------------
 
+def _metrics_from_snapshot(snapshot) -> dict[str, float]:
+    """Extract Cold Water Shock Risk and Alert Count from snapshot metrics (same schema as PC/YouTube)."""
+    out = {"Cold Water Shock Risk": 0.0, "Alert Count": 0}
+    for sm in snapshot.snapshot_metrics or []:
+        name = sm.metric_type.name if sm.metric_type else ""
+        if name == "Cold Water Shock Risk":
+            out["Cold Water Shock Risk"] = float(sm.value)
+        elif name == "Alert Count":
+            out["Alert Count"] = int(sm.value)
+    return out
+
+
 @orm_bp.route("/locations", methods=["GET"])
 def orm_list_locations():
-    """GET /orm/locations — list all locations (id, name, county, lat, lng) for map markers."""
+    """
+    GET /orm/locations — list all locations (id, name, county, lat, lng) for map markers.
+    cold_water_shock_risk_score and alert_count come from the latest snapshot for device
+    mobile:{location_id}, same schema as PC/YouTube metrics. Falls back to location table if no snapshot.
+    """
     with get_session() as session:
         stmt = select(Location).order_by(Location.id)
         locations = session.scalars(stmt).all()
-        result = [
-            {
+        result = []
+        for loc in locations:
+            device_id = f"{MOBILE_DEVICE_ID_PREFIX}{loc.id}"
+            snapshot_stmt = (
+                select(Snapshot)
+                .options(
+                    selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type),
+                )
+                .join(Snapshot.device)
+                .where(Device.device_id == device_id)
+                .order_by(Snapshot.id.desc())
+                .limit(1)
+            )
+            snapshot = session.scalars(snapshot_stmt).first()
+            if snapshot:
+                metrics = _metrics_from_snapshot(snapshot)
+                risk = metrics["Cold Water Shock Risk"]
+                alerts = metrics["Alert Count"]
+            else:
+                risk = float(getattr(loc, "cold_water_shock_risk_score", 0))
+                alerts = int(getattr(loc, "alert_count", 0))
+            result.append({
                 "id": loc.id,
                 "name": loc.name,
                 "county": loc.county,
                 "lat": loc.lat,
                 "lng": loc.lng,
-                "cold_water_shock_risk_score": getattr(loc, "cold_water_shock_risk_score", 0),
-                "alert_count": getattr(loc, "alert_count", 0),
-            }
-            for loc in locations
-        ]
+                "cold_water_shock_risk_score": risk,
+                "alert_count": alerts,
+            })
     logger.info("GET /orm/locations – returning %d locations", len(result))
     return _json_response(result, 200)
 
@@ -321,7 +356,7 @@ def orm_get_thresholds():
     result = {
         "thread_count": th["thread_count"],
         "ram_percent": th["ram_percent"],
-        "disk_read_mb_s": th["disk_read_mb_s"],
+        "disk_usage_percent": th["disk_usage_percent"],
         "warning_fraction": 0.8,
     }
     return _json_response(result, 200)

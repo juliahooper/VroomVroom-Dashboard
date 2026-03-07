@@ -1,6 +1,13 @@
 # VroomVroom Dashboard (React)
 
-React + Vite frontend for the VroomVroom dashboard. Uses the same Flask API (`/orm/snapshots/latest`, `/orm/snapshots?expand=metrics`, etc.).
+React + Vite frontend for the VroomVroom dashboard. Boat-themed gauges (tachometer, speedometer, fuel) for PC metrics; Ireland map with swim-spot markers; historic time-series charts. Uses the Flask API (`/orm/snapshots/latest`, `/orm/snapshots`, `/orm/locations`, etc.).
+
+## Features
+
+- **Live gauges:** Running Threads (RPM), Disk Usage (%), RAM Usage (Fuel). Thresholds from backend.
+- **Ireland map:** Swim spots with markers; click to select and filter historic data.
+- **Historic charts:** PC metrics (threads, disk, RAM) or location metrics (Cold Water Shock Risk, Alert Count, Water Temp) when a location is selected.
+- **YouTube badge:** View/like count from `youtube-vroom-vroom` device.
 
 ## Setup
 

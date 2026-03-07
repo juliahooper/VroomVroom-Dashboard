@@ -19,7 +19,7 @@ There is **one Aggregator API** (Flask) and **one DB**. No separate database per
 ## 2. Device IDs in the same DB
 
 - **PC:** `device_id` from config (e.g. `pc-01`).
-- **YouTube:** `device_id = "youtube"`.
+- **YouTube:** `device_id = "youtube-vroom-vroom"` (or from config).
 - **Mobile:** `device_id = "mobile:<location_id>"` (e.g. `mobile:loc_lough_dan`), one per location from Firestore.
 
 Same tables (`device`, `snapshot`, `snapshot_metric`, `metric_type`). Filter by `device_id` to get per-source data.
@@ -30,9 +30,9 @@ Same tables (`device`, `snapshot`, `snapshot_metric`, `metric_type`). Filter by 
 
 Seeded from `src/db_seed.py` (used by both raw SQL and ORM):
 
-- **PC:** CPU Usage, RAM Usage, Disk Usage (or Running Threads, RAM Usage, Disk Read Speed if you switched).
-- **3rd party:** Stream Count.
-- **Mobile:** Water Temp, Risk Score, Alerts Count.
+- **PC:** Running Threads, RAM Usage, Disk Usage (%).
+- **3rd party:** Stream Count (YouTube view/like count).
+- **Mobile:** Water Temp, Cold Water Shock Risk, Alert Count.
 
 All are in `metric_type`; `snapshot_metric` links snapshots to these by `metric_type_id`.
 
@@ -73,10 +73,25 @@ Add these to cron (or a scheduler) like the PC snapshot so all three sources kee
 Use the **Reporting API** (same Flask app):
 
 - **GET /orm/snapshots?device=pc-01** – PC snapshots.
-- **GET /orm/snapshots?device=youtube** – YouTube (stream count) snapshots.
+- **GET /orm/snapshots?device=youtube-vroom-vroom** – YouTube (stream count) snapshots.
 - **GET /orm/snapshots?device=mobile:loc_lough_dan** – Mobile snapshots for a location.
 - **GET /orm/snapshots** – All snapshots (optional `limit=`, default 50).
-- **GET /orm/devices** – All devices (pc-01, youtube, mobile:loc_..., etc.).
+- **GET /orm/devices** – All devices (pc-01, youtube-vroom-vroom, mobile:loc_..., etc.).
+- **GET /orm/locations** – Swim spots with lat/lng and latest metrics (cold_water_shock_risk_score, alert_count).
 - **GET /orm/snapshots/<id>** – One snapshot with all metrics.
 
 Front end can call these endpoints and combine results (e.g. dashboard with Device 1 metrics, Stream Count, and mobile metrics). All data comes from the single DB behind the Reporting API.
+
+**Frontend filtering:** When a location is selected on the Ireland map, historic charts fetch `mobile:&lt;location_id&gt;` snapshots and show location metrics (Cold Water Shock Risk, Alert Count, Water Temp). Otherwise historic view shows PC metrics (Running Threads, Disk Usage, RAM Usage).
+
+---
+
+## 6. Backfill (one-time)
+
+If Firebase already has historical data, run the backfill once before starting the normal collector:
+
+```bash
+python -m src.backfill_mobile
+```
+
+Web app must be running. The backfill creates one snapshot per historical point. After it completes, run the collector normally (cron/scheduler).

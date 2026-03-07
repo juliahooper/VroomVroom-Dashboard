@@ -29,7 +29,7 @@ HISTORY_LIMIT = 100
 # Metric name (from API) -> display label and gauge type
 METRIC_CONFIG = {
     "Running Threads": {"label": "Thread count", "gauge": "tachometer", "unit": "count"},
-    "Disk Read Speed": {"label": "Disk I/O", "gauge": "speedometer", "unit": "MB/s"},
+    "Disk Usage": {"label": "Disk usage", "gauge": "speedometer", "unit": "%"},
     "RAM Usage": {"label": "RAM usage", "gauge": "fuel", "unit": "%"},
 }
 
@@ -89,29 +89,29 @@ def _build_live_gauges(snapshot: dict) -> list[go.Figure]:
         )
     )
 
-    # Speedometer (speed metaphor) – Disk Read Speed
-    m = _metric_by_name(metrics, "Disk Read Speed")
+    # Speedometer (speed metaphor) – Disk Usage %
+    m = _metric_by_name(metrics, "Disk Usage")
     v = m["value"] if m else 0
-    mx = 80  # MB/s
+    mx = 100  # percent
     figures.append(
         go.Figure(
             go.Indicator(
                 mode="gauge+number",
                 value=v,
-                number={"suffix": " MB/s"},
-                title={"text": "Disk I/O<br>(Speed)"},
+                number={"suffix": "%"},
+                title={"text": "Disk usage<br>(Speed)"},
                 gauge={
                     "axis": {"range": [0, mx], "tickwidth": 1},
                     "bar": {"color": "#0d47a1"},
                     "steps": [
-                        {"range": [0, mx * 0.5], "color": "#e3f2fd"},
-                        {"range": [mx * 0.5, mx * 0.85], "color": "#bbdefb"},
+                        {"range": [0, mx * 0.6], "color": "#e3f2fd"},
+                        {"range": [mx * 0.6, mx * 0.85], "color": "#bbdefb"},
                         {"range": [mx * 0.85, mx], "color": "#ffcdd2"},
                     ],
                     "threshold": {
                         "line": {"color": "#c62828", "width": 4},
                         "thickness": 0.75,
-                        "value": 50,
+                        "value": 90,
                     },
                 },
             ),

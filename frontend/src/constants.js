@@ -1,0 +1,35 @@
+/**
+ * Device and metric constants. IDs match PostgreSQL/Firebase.
+ * Location ids (loc_lough_*) map to device_id = mobile:loc_xxx for metrics.
+ */
+export const DEVICE_PC = 'pc-01'
+export const DEVICE_YOUTUBE = 'youtube-vroom-vroom'
+export const DEVICE_PREFIX_MOBILE = 'mobile:'
+
+export const deviceIdForLocation = (locationId) =>
+  locationId ? `${DEVICE_PREFIX_MOBILE}${locationId}` : null
+
+/** PC metrics (gauges) */
+export const METRIC_THREADS = 'Running Threads'
+export const METRIC_DISK = 'Disk Usage'
+export const METRIC_RAM = 'RAM Usage'
+
+/** YouTube metric */
+export const METRIC_TOTAL_STREAMS = 'total_streams'
+
+/** Location metrics (from mobile snapshots) */
+export const METRIC_COLD_WATER_SHOCK = 'Cold Water Shock Risk'
+export const METRIC_ALERT_COUNT = 'Alert Count'
+export const METRIC_WATER_TEMP = 'Water Temp'
+
+export const PC_METRIC_KEYS = [
+  { key: METRIC_THREADS, color: '#0a4d7a', name: 'Threads' },
+  { key: METRIC_DISK, color: '#2b7ab8', name: 'Disk %' },
+  { key: METRIC_RAM, color: '#5cb85c', name: 'RAM %' },
+]
+
+export const LOCATION_METRIC_KEYS = [
+  { key: METRIC_COLD_WATER_SHOCK, color: '#0ea5e9', name: 'Cold Water Shock Risk' },
+  { key: METRIC_ALERT_COUNT, color: '#f59e0b', name: 'Alerts' },
+  { key: METRIC_WATER_TEMP, color: '#38bdf8', name: 'Water Temp (°C)' },
+]

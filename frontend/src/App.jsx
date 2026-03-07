@@ -61,7 +61,11 @@ export default function App() {
             )}
           </div>
         </section>
-        <BoatDashboardPanel view={view} onLiveData={handleLiveData} />
+        <BoatDashboardPanel
+          view={view}
+          onLiveData={handleLiveData}
+          selectedLocation={selectedLocation}
+        />
       </div>
       <header className="dashboard-header" aria-label="View controls">
         <div className="dashboard-toggle" role="switch" aria-checked={view === 'historic'} aria-label="Toggle Live or Historic view">

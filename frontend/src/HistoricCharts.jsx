@@ -8,12 +8,7 @@ import {
   AreaChart,
 } from 'recharts'
 import { useMemo } from 'react'
-
-const METRIC_KEYS = [
-  { key: 'Running Threads', color: '#0a4d7a', name: 'Threads' },
-  { key: 'Disk Read Speed', color: '#2b7ab8', name: 'Disk (MB/s)' },
-  { key: 'RAM Usage', color: '#5cb85c', name: 'RAM %' },
-]
+import { PC_METRIC_KEYS, LOCATION_METRIC_KEYS } from './constants'
 
 function formatTime(utc) {
   try {
@@ -24,7 +19,9 @@ function formatTime(utc) {
   }
 }
 
-export default function HistoricCharts({ snapshots = [] }) {
+export default function HistoricCharts({ snapshots = [], isLocationView = false, locationName }) {
+  const metricKeys = isLocationView ? LOCATION_METRIC_KEYS : PC_METRIC_KEYS
+
   const chartData = useMemo(() => {
     return snapshots.map((s) => {
       const point = { time: formatTime(s.timestamp_utc), full: s.timestamp_utc }
@@ -38,14 +35,25 @@ export default function HistoricCharts({ snapshots = [] }) {
   if (chartData.length === 0) {
     return (
       <div className="boat-charts-empty">
-        <p>No historic data yet. Collect more snapshots to see trends.</p>
+        <p>
+          {isLocationView
+            ? locationName
+              ? `No historic data for ${locationName} yet.`
+              : 'Select a location on the map to see its historic metrics.'
+            : 'No historic data yet. Collect more snapshots to see trends.'}
+        </p>
       </div>
     )
   }
 
   return (
     <div className="boat-charts">
-      {METRIC_KEYS.map(({ key, color, name }) => (
+      {isLocationView && locationName && (
+        <h3 className="boat-chart-title" style={{ marginBottom: 16 }}>
+          {locationName}
+        </h3>
+      )}
+      {metricKeys.map(({ key, color, name }) => (
         <div key={key} className="boat-chart-card">
           <h3 className="boat-chart-title">{name}</h3>
           <ResponsiveContainer width="100%" height={140}>

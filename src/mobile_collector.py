@@ -115,14 +115,12 @@ class MobileDataCollector:
         self,
         location_id: str,
         metric_id: str | None = None,
-        since_timestamp_millis: int | None = None,
+        limit_override: int | None = None,
     ) -> list[TimeSeriesPoint]:
         """
         Fetch time-series points for a location. If metric_id is given, use that
         time_series_sources entry; otherwise use the first. Value fields come from config.
-        If since_timestamp_millis is set, only return documents with timestamp > that value
-        (for incremental sync). Requires a Firestore composite index on
-        (location_field, timestamp_field) if since_* is used.
+        limit_override: if set, use instead of source.limit (e.g. for backfill).
         """
         db = self._client()
         if db is None or not self._config:
@@ -135,14 +133,12 @@ class MobileDataCollector:
         if not coll_name:
             logger.warning("Unknown collection_key '%s' for time_series.", source.collection_key)
             return []
+        limit = limit_override if limit_override is not None else source.limit
         try:
             ref = db.collection(coll_name)
-            query = ref.where(source.location_field, "==", location_id)
-            if since_timestamp_millis is not None:
-                from datetime import datetime, timezone
-                since_dt = datetime.fromtimestamp(since_timestamp_millis / 1000.0, tz=timezone.utc)
-                query = query.where(source.timestamp_field, ">", since_dt)
-            query = query.order_by(source.timestamp_field).limit(source.limit)
+            query = ref.where(source.location_field, "==", location_id).order_by(
+                source.timestamp_field
+            ).limit(limit)
             docs = query.stream()
             out = []
             for doc in docs:

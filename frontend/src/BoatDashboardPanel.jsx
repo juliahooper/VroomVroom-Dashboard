@@ -1,31 +1,45 @@
 import { useEffect, useState } from 'react'
 import { fetchLatestSnapshot, fetchHistoricSnapshots, fetchThresholds, getMetric } from './api'
+import {
+  DEVICE_PC,
+  DEVICE_YOUTUBE,
+  deviceIdForLocation,
+  METRIC_THREADS,
+  METRIC_DISK,
+  METRIC_RAM,
+  METRIC_TOTAL_STREAMS,
+} from './constants'
 import GaugeTachometer from './gauges/GaugeTachometer'
 import GaugeSpeedometer from './gauges/GaugeSpeedometer'
 import GaugeFuel from './gauges/GaugeFuel'
 import HistoricCharts from './HistoricCharts'
 
-const DEVICE = 'pc-01'
-const DEFAULT_THRESHOLDS = { thread_count: 300, ram_percent: 85, disk_read_mb_s: 50, warning_fraction: 0.8 }
+const DEFAULT_THRESHOLDS = { thread_count: 300, ram_percent: 85, disk_usage_percent: 90, warning_fraction: 0.8 }
 
-export default function BoatDashboardPanel({ view, onLiveData }) {
+export default function BoatDashboardPanel({ view, onLiveData, selectedLocation }) {
   const [liveSnapshot, setLiveSnapshot] = useState(null)
+  const [youtubeSnapshot, setYoutubeSnapshot] = useState(null)
   const [historicSnapshots, setHistoricSnapshots] = useState([])
   const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const historicDevice = selectedLocation ? deviceIdForLocation(selectedLocation.id) : DEVICE_PC
+
   useEffect(() => {
     let cancelled = false
     setError(null)
     function loadLive() {
-      fetchLatestSnapshot(DEVICE)
+      fetchLatestSnapshot(DEVICE_PC)
         .then((data) => { if (!cancelled) setLiveSnapshot(data) })
         .catch((e) => { if (!cancelled) setError(e.message) })
         .finally(() => { if (!cancelled) setLoading(false) })
+      fetchLatestSnapshot(DEVICE_YOUTUBE)
+        .then((data) => { if (!cancelled) setYoutubeSnapshot(data) })
+        .catch(() => { if (!cancelled) setYoutubeSnapshot(null) })
     }
     function loadHistoric() {
-      fetchHistoricSnapshots(DEVICE, 100)
+      fetchHistoricSnapshots(historicDevice, 100)
         .then((data) => { if (!cancelled) setHistoricSnapshots(data) })
         .catch((e) => { if (!cancelled) setError(e.message) })
         .finally(() => { if (!cancelled) setLoading(false) })
@@ -43,7 +57,7 @@ export default function BoatDashboardPanel({ view, onLiveData }) {
       loadHistoric()
       return () => { cancelled = true }
     }
-  }, [view])
+  }, [view, historicDevice])
 
   if (view === 'historic') {
     return (
@@ -51,23 +65,30 @@ export default function BoatDashboardPanel({ view, onLiveData }) {
         <div className="boat-dashboard-panel__inner">
           {error && <div className="boat-dashboard-panel__error">{error}</div>}
           {loading && <div className="boat-dashboard-panel__loading">Loading history…</div>}
-          {!loading && !error && <HistoricCharts snapshots={historicSnapshots} />}
+          {!loading && !error && (
+            <HistoricCharts
+              snapshots={historicSnapshots}
+              isLocationView={!!selectedLocation}
+              locationName={selectedLocation?.name}
+            />
+          )}
         </div>
       </div>
     )
   }
 
   const metrics = liveSnapshot?.metrics ?? []
-  const threads = getMetric(metrics, 'Running Threads')
-  const disk = getMetric(metrics, 'Disk Read Speed')
-  const ram = getMetric(metrics, 'RAM Usage')
-  const likeMetric = getMetric(metrics, 'total_streams')
-  const likeCount = likeMetric?.value ?? 0
+  const threads = getMetric(metrics, METRIC_THREADS)
+  const disk = getMetric(metrics, METRIC_DISK)
+  const ram = getMetric(metrics, METRIC_RAM)
+  const youtubeMetrics = youtubeSnapshot?.metrics ?? []
+  const likeMetric = getMetric(youtubeMetrics, METRIC_TOTAL_STREAMS)
   const viewCount = likeMetric?.value ?? 0
+  const likeCount = viewCount
 
   const tc = thresholds.thread_count ?? 300
   const rc = thresholds.ram_percent ?? 85
-  const dc = thresholds.disk_read_mb_s ?? 50
+  const dc = thresholds.disk_usage_percent ?? 90
   const wf = thresholds.warning_fraction ?? 0.8
   const threadWarning = Math.floor(tc * wf)
   const ramWarning = Math.floor(rc * wf)
@@ -99,9 +120,9 @@ export default function BoatDashboardPanel({ view, onLiveData }) {
                 value={disk?.value ?? 0}
                 dangerThreshold={dc}
                 warningThreshold={diskWarning}
-                max={Math.max(80, Math.ceil(dc * 1.2))}
-                label="Speed"
-                unit="MB/s"
+                max={Math.max(100, Math.ceil(dc * 1.2))}
+                label="Disk"
+                unit="%"
               />
             </div>
             <div className="boat-gauge-wrap boat-gauge-wrap--right">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { fetchLocations } from './api'
 
 // Fix default marker icon in bundler (webpack/vite)
 delete L.Icon.Default.prototype._getIconUrl
@@ -13,9 +14,6 @@ L.Icon.Default.mergeOptions({
 
 const IRELAND_CENTER = [53.4, -7.7]
 const IRELAND_ZOOM = 6
-
-// Use same origin by default; set VITE_API_BASE to backend URL when frontend is served elsewhere (e.g. VM).
-const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
 
 function FitBounds({ locations }) {
   const map = useMap()
@@ -36,19 +34,9 @@ export default function IrelandMap({ selectedLocationId, onSelectLocation }) {
     let cancelled = false
     setLoading(true)
     setError(null)
-    const url = `${API_BASE}/orm/locations`
-    fetch(url)
-      .then((res) => {
-        if (!res.ok) {
-          if (res.status === 404) {
-            throw new Error('Locations API not found (404). Ensure the backend is running and reachable.')
-          }
-          throw new Error(`HTTP ${res.status}`)
-        }
-        return res.json()
-      })
+    fetchLocations()
       .then((data) => {
-        if (!cancelled) setLocations(Array.isArray(data) ? data : [])
+        if (!cancelled) setLocations(data)
       })
       .catch((e) => {
         if (!cancelled) setError(e.message)

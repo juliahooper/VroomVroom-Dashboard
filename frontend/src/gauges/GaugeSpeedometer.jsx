@@ -1,6 +1,6 @@
 /**
  * Classic car-style speedometer: dark face, 270° arc, orange needle.
- * Green / yellow / red zones from backend danger/warning thresholds (disk_read_mb_s).
+ * Green / yellow / red zones from backend danger/warning thresholds (disk_usage_percent).
  */
 export default function GaugeSpeedometer({
   value = 0,
