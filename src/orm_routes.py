@@ -11,7 +11,7 @@ import threading
 import time
 from dataclasses import asdict
 
-from flask import Blueprint, request
+from flask import Blueprint, current_app, request
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -25,9 +25,9 @@ from .orm_dto import (
     snapshot_to_summary_dto,
     validate_snapshot_upload_dto,
 )
-from .orm_models import Device, Snapshot, SnapshotMetric, get_session
+from .orm_models import Device, Location, Snapshot, SnapshotMetric, get_session
 from .snapshot_backup import append_backup, append_failed
-from .web_app import _json_response
+from .web_app import APP_CONFIG_KEY, _json_response
 
 logger = logging.getLogger(__name__)
 
@@ -147,36 +147,68 @@ def upload_snapshot():
 
 @orm_bp.route("/snapshots", methods=["GET"])
 def orm_list_snapshots():
-    """GET /orm/snapshots — list snapshots (optional ?device=, ?limit=). Uses joinedload to avoid N+1."""
+    """GET /orm/snapshots — list snapshots (optional ?device=, ?limit=, ?expand=metrics)."""
     device_filter = request.args.get("device")
+    expand_metrics = request.args.get("expand") == "metrics"
     try:
         limit = min(int(request.args.get("limit", 50)), 200)
     except ValueError:
         limit = 50
 
     with get_session() as session:
-        # Build the base query
+        opts = [
+            joinedload(Snapshot.device),
+            selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type)
+            if expand_metrics
+            else selectinload(Snapshot.snapshot_metrics),
+        ]
         stmt = (
             select(Snapshot)
-            .options(
-                joinedload(Snapshot.device),
-                selectinload(Snapshot.snapshot_metrics),
-            )
+            .options(*opts)
             .order_by(Snapshot.id.desc())
             .limit(limit)
         )
-
-        # Demonstrate query filtering — add WHERE clause if ?device= supplied
         if device_filter:
             stmt = stmt.join(Snapshot.device).where(Device.device_id == device_filter)
 
         snapshots = session.scalars(stmt).all()
-        result = [snapshot_to_summary_dto(s) for s in snapshots]
+        result = (
+            [snapshot_to_detail_dto(s) for s in snapshots]
+            if expand_metrics
+            else [snapshot_to_summary_dto(s) for s in snapshots]
+        )
 
     logger.info(
-        "GET /orm/snapshots – returning %d snapshots (filter=%r)",
-        len(result), device_filter,
+        "GET /orm/snapshots – returning %d snapshots (filter=%r, expand=%s)",
+        len(result), device_filter, "metrics" if expand_metrics else "no",
     )
+    return _json_response(result, 200)
+
+
+@orm_bp.route("/snapshots/latest", methods=["GET"])
+def orm_latest_snapshot():
+    """GET /orm/snapshots/latest?device=... — single latest snapshot with full metrics."""
+    device_filter = request.args.get("device") or "pc-01"
+    with get_session() as session:
+        stmt = (
+            select(Snapshot)
+            .options(
+                joinedload(Snapshot.device),
+                selectinload(Snapshot.snapshot_metrics).joinedload(SnapshotMetric.metric_type),
+            )
+            .join(Snapshot.device)
+            .where(Device.device_id == device_filter)
+            .order_by(Snapshot.id.desc())
+            .limit(1)
+        )
+        snapshot = session.scalars(stmt).first()
+        if snapshot is None:
+            return _json_response(
+                {"error": f"No snapshots found for device {device_filter!r}"},
+                404,
+            )
+        result = snapshot_to_detail_dto(snapshot)
+    logger.info("GET /orm/snapshots/latest – device=%r id=%d", device_filter, result["id"])
     return _json_response(result, 200)
 
 
@@ -245,4 +277,51 @@ def orm_list_devices():
     # Session is closed here — don't access ORM objects outside this block
 
     logger.info("GET /orm/devices – returning %d devices", len(result))
+    return _json_response(result, 200)
+
+
+# ---------------------------------------------------------------------------
+# 5. Map locations — GET /orm/locations
+# ---------------------------------------------------------------------------
+
+@orm_bp.route("/locations", methods=["GET"])
+def orm_list_locations():
+    """GET /orm/locations — list all locations (id, name, county, lat, lng) for map markers."""
+    with get_session() as session:
+        stmt = select(Location).order_by(Location.id)
+        locations = session.scalars(stmt).all()
+        result = [
+            {
+                "id": loc.id,
+                "name": loc.name,
+                "county": loc.county,
+                "lat": loc.lat,
+                "lng": loc.lng,
+                "cold_water_shock_risk_score": getattr(loc, "cold_water_shock_risk_score", 0),
+                "alert_count": getattr(loc, "alert_count", 0),
+            }
+            for loc in locations
+        ]
+    logger.info("GET /orm/locations – returning %d locations", len(result))
+    return _json_response(result, 200)
+
+
+# ---------------------------------------------------------------------------
+# 6. Danger thresholds for gauges — GET /orm/thresholds
+# ---------------------------------------------------------------------------
+
+@orm_bp.route("/thresholds", methods=["GET"])
+def orm_get_thresholds():
+    """GET /orm/thresholds — danger thresholds (and warning_fraction) for gauge green/yellow/red zones."""
+    cfg = current_app.config.get(APP_CONFIG_KEY)
+    if cfg is not None:
+        th = asdict(cfg.danger_thresholds)
+    else:
+        th = FALLBACK_THRESHOLDS
+    result = {
+        "thread_count": th["thread_count"],
+        "ram_percent": th["ram_percent"],
+        "disk_read_mb_s": th["disk_read_mb_s"],
+        "warning_fraction": 0.8,
+    }
     return _json_response(result, 200)

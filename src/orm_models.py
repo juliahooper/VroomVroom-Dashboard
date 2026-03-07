@@ -173,6 +173,25 @@ class SnapshotMetric(Base):
         return f"<SnapshotMetric snap={self.snapshot_id} type={self.metric_type_id} value={self.value}>"
 
 
+class Location(Base):
+    """
+    Maps to the 'location' table.
+    Map markers (e.g. Irish locations) with id, name, county, lat, lng, cold_water_shock_risk_score, alert_count.
+    """
+    __tablename__ = "location"
+
+    id:                         Mapped[str]  = mapped_column(String, primary_key=True)
+    name:                       Mapped[str]  = mapped_column(String, nullable=False)
+    county:                     Mapped[str]  = mapped_column(String, nullable=False)
+    lat:                        Mapped[float] = mapped_column(Float, nullable=False)
+    lng:                        Mapped[float] = mapped_column(Float, nullable=False)
+    cold_water_shock_risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    alert_count:                 Mapped[int]   = mapped_column(Integer, nullable=False, default=0)
+
+    def __repr__(self) -> str:
+        return f"<Location id={self.id!r} name={self.name!r} lat={self.lat} lng={self.lng}>"
+
+
 # ---------------------------------------------------------------------------
 # Session management (RAII context manager)
 # ---------------------------------------------------------------------------
