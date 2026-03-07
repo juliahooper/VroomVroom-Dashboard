@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import { fetchLatestSnapshot, fetchHistoricSnapshots, getMetric } from './api'
-import { deviceIdForLocation, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS } from './constants'
+import { fetchLatestSnapshot, fetchHistoricSnapshots, getMetric, sendCommand } from './api'
+import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS } from './constants'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
+import DangerRecoveryModal from './DangerRecoveryModal'
 import ColdWaterShockBadge from './ColdWaterShockBadge'
 import HistoricCharts from './HistoricCharts'
 import IrelandMapStatic from './IrelandMapStatic'
@@ -27,6 +28,23 @@ export default function App() {
   const [locationHistoricSnapshots, setLocationHistoricSnapshots] = useState([])
   const [locationHistoricLoading, setLocationHistoricLoading] = useState(false)
   const [selectedLocationMetricKey, setSelectedLocationMetricKey] = useState(LOCATION_METRIC_KEYS[0]?.key ?? null)
+
+  const [showDangerModal, setShowDangerModal] = useState(false)
+  const [dangerSubmitting, setDangerSubmitting] = useState(false)
+
+  const handleDanger = () => setShowDangerModal(true)
+  const handleDangerCancel = () => setShowDangerModal(false)
+  const handleDangerYes = async () => {
+    setDangerSubmitting(true)
+    try {
+      await sendCommand(DEVICE_PC, 'play_alert')
+      setShowDangerModal(false)
+    } catch (e) {
+      console.error('Danger recovery failed:', e)
+    } finally {
+      setDangerSubmitting(false)
+    }
+  }
 
   // Live: fetch latest for selected location (mobile metrics)
   useEffect(() => {
@@ -189,7 +207,7 @@ export default function App() {
             )}
           </div>
         </section>
-        <BoatDashboardPanel view={view} />
+        <BoatDashboardPanel view={view} onDanger={handleDanger} />
       </div>
       <header className="dashboard-header" aria-label="View controls">
         <div className="dashboard-toggle" role="switch" aria-checked={view === 'historic'} aria-label="Toggle Live or Historic view">
@@ -206,6 +224,13 @@ export default function App() {
           </button>
         </div>
       </header>
+      {showDangerModal && (
+        <DangerRecoveryModal
+          onYes={handleDangerYes}
+          onCancel={handleDangerCancel}
+          isSubmitting={dangerSubmitting}
+        />
+      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchLatestSnapshot, fetchHistoricSnapshots, fetchThresholds, getMetric } from './api'
 import {
   DEVICE_PC,
@@ -14,20 +14,31 @@ import { PC_METRIC_KEYS } from './constants'
 
 const DEFAULT_THRESHOLDS = { thread_count: 300, ram_percent: 85, disk_usage_percent: 90, warning_fraction: 0.8 }
 
-export default function BoatDashboardPanel({ view, onLiveData }) {
+export default function BoatDashboardPanel({ view, onDanger }) {
   const [liveSnapshot, setLiveSnapshot] = useState(null)
   const [historicSnapshots, setHistoricSnapshots] = useState([])
   const [thresholds, setThresholds] = useState(DEFAULT_THRESHOLDS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedMetricKey, setSelectedMetricKey] = useState(PC_METRIC_KEYS[0]?.key ?? null)
+  const dangerReportedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
     setError(null)
     function loadLive() {
       fetchLatestSnapshot(DEVICE_PC)
-        .then((data) => { if (!cancelled) setLiveSnapshot(data) })
+        .then((data) => {
+          if (!cancelled) {
+            setLiveSnapshot(data)
+            const hasDanger = (data?.metrics ?? []).some((m) => m.status === 'danger')
+            if (hasDanger && !dangerReportedRef.current && onDanger) {
+              dangerReportedRef.current = true
+              onDanger(data)
+            }
+            if (!hasDanger) dangerReportedRef.current = false
+          }
+        })
         .catch((e) => { if (!cancelled) setError(e.message) })
         .finally(() => { if (!cancelled) setLoading(false) })
     }
@@ -46,6 +57,7 @@ export default function BoatDashboardPanel({ view, onLiveData }) {
       const t = setInterval(loadLive, 8000)
       return () => { cancelled = true; clearInterval(t) }
     } else {
+      dangerReportedRef.current = false
       setLoading(true)
       loadHistoric()
       return () => { cancelled = true }

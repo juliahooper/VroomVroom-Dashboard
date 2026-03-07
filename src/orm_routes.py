@@ -137,30 +137,6 @@ def upload_snapshot():
                     snapshot = snapshot_from_dto(dto, session)
                     summary = snapshot_to_summary_dto(snapshot)
                     summary["uploaded"] = True
-
-                    # Stretch goal: when any metric is danger, queue play_alert for PC devices
-                    device_id_str = str(dto.get("device_id") or "")
-                    is_pc = device_id_str != "youtube-vroom-vroom" and not device_id_str.startswith("mobile:")
-                    has_danger = any(m.get("status") == "danger" for m in metrics_in)
-                    if is_pc and has_danger:
-                        existing = session.scalars(
-                            select(DeviceCommand)
-                            .join(Device)
-                            .where(
-                                Device.device_id == device_id_str,
-                                DeviceCommand.command == "play_alert",
-                                DeviceCommand.status == "pending",
-                            )
-                        ).first()
-                        if existing is None:
-                            cmd = DeviceCommand(
-                                device_id=snapshot.device_id,
-                                command="play_alert",
-                                status="pending",
-                                created_at=datetime.now(timezone.utc).isoformat(),
-                            )
-                            session.add(cmd)
-                            logger.info("POST /orm/upload_snapshot – queued play_alert for device %s (danger)", device_id_str)
                 append_backup(dto)
             logger.info(
                 "POST /orm/upload_snapshot – stored id=%d device=%s metric_count=%d",
@@ -382,8 +358,49 @@ def orm_list_locations():
 
 
 # ---------------------------------------------------------------------------
-# 6. Device commands (stretch goal) — poll and ack
+# 6. Device commands (stretch goal) — create, poll, ack
 # ---------------------------------------------------------------------------
+
+@orm_bp.route("/commands", methods=["POST"])
+def orm_create_command():
+    """POST /orm/commands — create a command for a device. Body: { "device_id": "pc-01", "command": "play_alert" }."""
+    if not request.is_json:
+        return _json_response({"error": "Content-Type must be application/json"}, 400)
+    data = request.get_json(silent=True)
+    if data is None:
+        return _json_response({"error": "Invalid or empty JSON body"}, 400)
+    device_id_str = (data.get("device_id") or "").strip()
+    command = (data.get("command") or "").strip()
+    if not device_id_str or not command:
+        return _json_response({"error": "device_id and command required"}, 400)
+    if command != "play_alert":
+        return _json_response({"error": "Unknown command (allowed: play_alert)"}, 400)
+
+    with get_session() as session:
+        device = session.scalars(select(Device).where(Device.device_id == device_id_str)).first()
+        if device is None:
+            return _json_response({"error": f"Device {device_id_str!r} not found"}, 404)
+        existing = session.scalars(
+            select(DeviceCommand).where(
+                DeviceCommand.device_id == device.id,
+                DeviceCommand.command == command,
+                DeviceCommand.status == "pending",
+            )
+        ).first()
+        if existing is not None:
+            return _json_response({"id": existing.id, "status": "pending", "message": "Command already pending"}, 200)
+        cmd = DeviceCommand(
+            device_id=device.id,
+            command=command,
+            status="pending",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        session.add(cmd)
+        session.flush()
+        cmd_id = cmd.id
+    logger.info("POST /orm/commands – created id=%d device=%s command=%s", cmd_id, device_id_str, command)
+    return _json_response({"id": cmd_id, "device_id": device_id_str, "command": command, "status": "pending"}, 201)
+
 
 @orm_bp.route("/commands/pending", methods=["GET"])
 def orm_commands_pending():

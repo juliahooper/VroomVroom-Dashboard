@@ -149,4 +149,4 @@ Once the web app and agent are both running, the database will keep being popula
 
 ## Stretch goal: threshold alert (open YouTube)
 
-When a PC metric (threads, RAM, disk) reaches **danger** threshold, the server queues a `play_alert` command. The collector agent polls for it and opens the Vroom Vroom music video in your browser. To test: temporarily lower thresholds in `config/config.json` (e.g. `"thread_count": 10`) so you hit danger quickly.
+When a PC metric (threads, RAM, disk) reaches **danger** threshold, the dashboard shows a popup: "Begin emergency recovery mode?" with **Yes** and **Cancel**. If you click **Yes**, the frontend sends a `play_alert` command to the server; the collector agent polls for it and opens the Vroom Vroom music video on the PC. If you click **Cancel**, nothing happens. To test: temporarily lower thresholds in `config/config.json` (e.g. `"thread_count": 50`) so you hit danger quickly.

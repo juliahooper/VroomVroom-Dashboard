@@ -64,3 +64,21 @@ export async function fetchLocations() {
 export function getMetric(metrics, name) {
   return metrics?.find((m) => m.name === name)
 }
+
+/**
+ * Create a command for a device (stretch goal). E.g. play_alert opens YouTube on the PC.
+ * @param {string} deviceId - e.g. 'pc-01'
+ * @param {string} command - e.g. 'play_alert'
+ */
+export async function sendCommand(deviceId, command = 'play_alert') {
+  const res = await fetch(`${API_BASE}/orm/commands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_id: deviceId, command }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `Send command: ${res.status}`)
+  }
+  return res.json()
+}
