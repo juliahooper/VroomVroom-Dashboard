@@ -1,9 +1,18 @@
-# pip install -r requirements.txt
-psutil>=5.9.0          # OS metrics (CPU, RAM, disk)
-flask>=3.0.0           # Web app
-gunicorn>=21.0.0       # Production WSGI
-sqlalchemy>=2.0.0      # ORM
-psycopg2-binary>=2.9.0 # PostgreSQL (when DATABASE_URL set)
-requests>=2.28.0       # HTTP (YouTube API, etc.)
-python-dotenv>=1.0.0   # .env loading
-firebase-admin>=6.0.0  # Mobile/Firestore (when mobile enabled)
+# VroomVroom Dashboard – Python dependencies
+# Install: pip install -r requirements.txt (from project root, with venv activated)
+#
+# Core (required for web app, collector, DB):
+psutil>=5.9.0          # OS metrics (threads, RAM, disk) – collector agent
+flask>=3.0.0           # Web app and REST API
+gunicorn>=21.0.0       # Production WSGI server (VM deployment)
+sqlalchemy>=2.0.0      # ORM for snapshots, devices, commands
+python-dotenv>=1.0.0   # .env loading (YOUTUBE_API_KEY, DATABASE_URL)
+requests>=2.28.0       # HTTP client (YouTube Data API v3)
+
+# Database backends (at least one needed):
+# - SQLite: built-in, no extra package (default when DATABASE_URL unset)
+# - PostgreSQL: required when DATABASE_URL is set (e.g. on VM)
+psycopg2-binary>=2.9.0 # PostgreSQL driver
+
+# Optional (install always; app degrades gracefully if not configured):
+firebase-admin>=6.0.0  # Mobile/Firestore – when mobile.enabled in config
