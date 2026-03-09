@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import signal
+import threading
 import time
 import webbrowser
 import urllib.error
@@ -132,8 +133,25 @@ def run_agent(
         shutdown_requested = True
         logger.info("Shutdown requested (signal), will exit after current iteration")
 
+    def _command_poll_loop() -> None:
+        """Background thread: poll for commands every 10s so play_alert runs quickly."""
+        poll_interval = 10
+        while not shutdown_requested:
+            try:
+                _poll_and_execute_commands(api, device_id)
+            except Exception as e:
+                logger.debug("Command poll failed: %s", e)
+            for _ in range(poll_interval):
+                if shutdown_requested:
+                    return
+                time.sleep(1)
+
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
+
+    cmd_thread = threading.Thread(target=_command_poll_loop, daemon=True)
+    cmd_thread.start()
+    logger.info("Command poll thread started (every %ds)", 10)
 
     logger.info(
         "Collector agent starting: interval=%ds, api=%s, device_id=%s",
@@ -169,12 +187,6 @@ def run_agent(
                 "Cycle %d: uploaded snapshot %s (%d metrics)",
                 cycle, snapshot.timestamp_utc.isoformat(), len(snapshot.metrics),
             )
-
-            # Stretch goal: poll for commands (e.g. play_alert when server detected danger)
-            try:
-                _poll_and_execute_commands(api, device_id)
-            except Exception as e:
-                logger.warning("Command poll/execute failed: %s", e)
 
             # YouTube: same interval (view count + like count = 2 metrics for 3rd party)
             try:

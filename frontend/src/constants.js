@@ -38,3 +38,6 @@ export const YOUTUBE_METRIC_KEYS = [
   { key: METRIC_TOTAL_STREAMS, color: '#e53935', name: 'Total Streams' },
   { key: METRIC_LIKE_COUNT, color: '#0d9488', name: 'Like Count' },
 ]
+
+/** Vroom Vroom music video – opened in user's browser when emergency recovery is triggered */
+export const VROOM_VROOM_VIDEO_URL = 'https://www.youtube.com/watch?v=qfAqtFuGjWM'

@@ -944,12 +944,14 @@
 .danger-recovery-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
+  pointer-events: auto;
+  cursor: default;
 }
 
 .danger-recovery-modal {
@@ -959,6 +961,8 @@
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   max-width: 400px;
+  pointer-events: auto;
+  cursor: default;
 }
 
 .danger-recovery-modal__title {
@@ -988,6 +992,7 @@
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
+  pointer-events: auto;
   transition: opacity 0.2s;
 }
 

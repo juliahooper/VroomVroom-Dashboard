@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import { fetchLatestSnapshot, fetchHistoricSnapshots, getMetric, sendCommand } from './api'
-import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS } from './constants'
+import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS, VROOM_VROOM_VIDEO_URL } from './constants'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
 import DangerRecoveryModal from './DangerRecoveryModal'
@@ -34,16 +34,12 @@ export default function App() {
 
   const handleDanger = () => setShowDangerModal(true)
   const handleDangerCancel = () => setShowDangerModal(false)
-  const handleDangerYes = async () => {
+  const handleDangerYes = () => {
     setDangerSubmitting(true)
-    try {
-      await sendCommand(DEVICE_PC, 'play_alert')
-      setShowDangerModal(false)
-    } catch (e) {
-      console.error('Danger recovery failed:', e)
-    } finally {
-      setDangerSubmitting(false)
-    }
+    setShowDangerModal(false)
+    window.open(VROOM_VROOM_VIDEO_URL, '_blank', 'noopener,noreferrer')
+    sendCommand(DEVICE_PC, 'play_alert').catch((e) => console.error('Danger recovery failed:', e))
+    setDangerSubmitting(false)
   }
 
   // Live: fetch latest for selected location (mobile metrics)
