@@ -65,3 +65,24 @@ def mobile_to_snapshot(
         metrics.append(Metric(name=name, value=float(cr.count), unit=unit, status="normal"))
 
     return Snapshot(device_id=device_id, timestamp_utc=ts_utc, metrics=metrics)
+
+
+def mobile_history_to_snapshots(
+    location_id: str,
+    points: list[TimeSeriesPoint],
+    count_results: list[CountResult],
+    *,
+    device_id_prefix: str = MOBILE_DEVICE_ID_PREFIX,
+) -> list[Snapshot]:
+    """
+    Build a list of Snapshots from time-series points (same shape as PC historic).
+    Each point becomes one snapshot; count metrics (e.g. Alert Count) are appended
+    from count_results (same value for each point; counts are location-level).
+    """
+    out: list[Snapshot] = []
+    for point in points:
+        snap = mobile_to_snapshot(
+            location_id, point, count_results, device_id_prefix=device_id_prefix
+        )
+        out.append(snap)
+    return out

@@ -11,7 +11,7 @@ from dataclasses import asdict
 from flask import Blueprint, current_app, request
 
 from .mobile_collector import MobileDataCollector
-from .mobile_snapshot_bridge import mobile_to_snapshot
+from .mobile_snapshot_bridge import mobile_history_to_snapshots, mobile_to_snapshot
 from .web_app import _json_response
 
 logger = logging.getLogger(__name__)
@@ -136,4 +136,42 @@ def metrics_history():
         }, 200)
     except Exception as e:
         logger.exception("GET /mobile/metrics/history failed: %s", e)
+        return _json_response({"error": str(e)}, 500)
+
+
+@mobile_bp.route("/snapshots/history", methods=["GET"])
+def snapshots_history():
+    """
+    GET /mobile/snapshots/history?locationId=loc_lough_dan&limit=500
+    Returns historic mobile snapshots from Firebase (same shape as /orm/snapshots)
+    so the frontend can use one format for historic charts. Data comes from
+    Firestore only (no PostgreSQL).
+    """
+    coll = _collector()
+    if coll is None:
+        return _mobile_unavailable()
+    location_id = request.args.get("locationId", DEFAULT_LOCATION_ID)
+    limit = request.args.get("limit", type=int) or 500
+    limit = max(1, min(limit, 1000))
+    try:
+        points = coll.get_time_series(location_id, limit_override=limit)
+        count_results = []
+        cfg = current_app.config.get(MOBILE_CONFIG_KEY)
+        if cfg:
+            for src in cfg.count_sources:
+                cr = coll.get_count(location_id, metric_id=src.metric_id)
+                if cr:
+                    count_results.append(cr)
+        snapshots = mobile_history_to_snapshots(location_id, points, count_results)
+        payload = [
+            {
+                "device_id": s.device_id,
+                "timestamp_utc": s.timestamp_utc.isoformat(),
+                "metrics": [{"name": m.name, "value": m.value, "unit": m.unit, "status": m.status} for m in s.metrics],
+            }
+            for s in snapshots
+        ]
+        return _json_response(payload, 200)
+    except Exception as e:
+        logger.exception("GET /mobile/snapshots/history failed: %s", e)
         return _json_response({"error": str(e)}, 500)

@@ -2,8 +2,10 @@ const API_BASE = '' // proxied in dev, same origin in prod
 
 /**
  * Fetch latest snapshot with full metrics for a device (live view).
+ * For mobile locations (device starts with 'mobile:') use fetchLatestMobileSnapshot(locationId) instead
+ * so data comes from Firebase, not PostgreSQL.
  * @param {string} [device='pc-01']
- * @returns {Promise<{ id: number, device_id: string, timestamp_utc: string, metrics: Array<{ name: string, unit: string, value: number, status: string }> }>}
+ * @returns {Promise<{ id?: number, device_id: string, timestamp_utc: string, metrics: Array<{ name: string, unit: string, value: number, status: string }> }>}
  */
 export async function fetchLatestSnapshot(device = 'pc-01') {
   const res = await fetch(`${API_BASE}/orm/snapshots/latest?device=${encodeURIComponent(device)}`)
@@ -12,6 +14,39 @@ export async function fetchLatestSnapshot(device = 'pc-01') {
     throw new Error(`Latest snapshot: ${res.status}`)
   }
   return res.json()
+}
+
+/**
+ * Fetch latest snapshot for a mobile location from Firebase (not PostgreSQL).
+ * Use this for live view when a location is selected.
+ * @param {string} locationId - e.g. 'loc_lough_dan'
+ * @returns {Promise<{ device_id: string, timestamp_utc: string, metrics: Array<{ name: string, unit: string, value: number, status: string }> }>}
+ */
+export async function fetchLatestMobileSnapshot(locationId) {
+  const res = await fetch(`${API_BASE}/mobile/snapshot?locationId=${encodeURIComponent(locationId)}`)
+  if (!res.ok) {
+    if (res.status === 503) return null
+    throw new Error(`Mobile snapshot: ${res.status}`)
+  }
+  return res.json()
+}
+
+/**
+ * Fetch historic snapshots for a mobile location from Firebase (not PostgreSQL).
+ * Returns same shape as fetchHistoricSnapshots for use in HistoricCharts.
+ * @param {string} locationId - e.g. 'loc_lough_dan'
+ * @param {number} [limit=500]
+ * @returns {Promise<Array<{ device_id: string, timestamp_utc: string, metrics: Array<{ name: string, unit: string, value: number, status: string }> }>>}
+ */
+export async function fetchHistoricMobileSnapshots(locationId, limit = 500) {
+  const res = await fetch(`${API_BASE}/mobile/snapshots/history?locationId=${encodeURIComponent(locationId)}&limit=${limit}`)
+  if (!res.ok) {
+    if (res.status === 503) return []
+    throw new Error(`Mobile historic: ${res.status}`)
+  }
+  const data = await res.json()
+  const result = Array.isArray(data) ? data : []
+  return result
 }
 
 /** ISO 8601 timestamp for 7 days ago (or since first data if less). */

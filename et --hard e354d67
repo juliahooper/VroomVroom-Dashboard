@@ -1,0 +1,105 @@
+[33m0f6f370[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mblaithin[m[33m, [m[1;31morigin/blaithin[m[33m)[m historic view fix attempt 5
+[33m2a0ad5f[m historical view fix attempt 4
+[33m26c7a68[m historic view fix attempt 3
+[33md8011d2[m historic view fix attempt 2
+[33m81d3fde[m historic view fix attempt
+[33me354d67[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m lll
+[33m3285d56[m lll
+[33ma24c9ed[m hoho
+[33mdeda7b8[m hoho
+[33m5e13230[m hoho
+[33m546f439[m hoho
+[33mce7cce7[m l
+[33m1a26be5[m new
+[33m9fd9c34[m Add stretch goal: danger popup, emergency recovery, YouTube alert
+[33m479d9c1[m stretch
+[33m478f3b4[m historic
+[33mb28f8ee[m historic
+[33m081f427[m bum
+[33m0f28ac6[m bum
+[33m7ecc37b[m bum
+[33m1c14bf0[m bum
+[33mda0c5a3[m bum
+[33mdabf733[m hah
+[33m8022031[m l
+[33m0a3400c[m mapp
+[33mb888466[m new map
+[33m3988789[m b
+[33m75966bc[m b
+[33m6476788[m Merge pull request #17 from juliahooper/frontend
+[33m30f1693[m[33m ([m[1;31morigin/frontend[m[33m)[m rawr
+[33m69f1ca9[m Merge pull request #16 from juliahooper/frontend
+[33m876376f[m FF
+[33mabb09d6[m Merge pull request #15 from juliahooper/frontend
+[33md2bbfda[m fix
+[33mf2a6708[m Merge pull request #14 from juliahooper/frontend
+[33m1676652[m Merge branch 'frontend' of https://github.com/juliahooper/VroomVroom-Dashboard into frontend
+[33m6643760[m Enhance documentation and implement backfill functionality for historical data
+[33m3704a5e[m Merge pull request #13 from juliahooper/frontend
+[33m69a3da1[m Merge branch 'main' into frontend
+[33m4a5c153[m flask
+[33m7e3f85c[m Merge pull request #12 from juliahooper/frontend
+[33me56525c[m frontend
+[33m1a0ba13[m Update Firebase credentials path handling in configuration
+[33m4e82d91[m YouTube Like Count metric, firebase-admin in requirements, ignore Firebase key, GETTING_STARTED guide
+[33m7a32261[m Enhance YouTube data collection to include like count
+[33mc621489[m Update mobile data collection and configuration
+[33mb9432c1[m Enhance collector agent to include mobile data collection
+[33m0c02ec4[m Add PostgreSQL support and update documentation
+[33m9818569[m Merge pull request #11 from juliahooper/blaithin
+[33m02601d5[m 20-min collection interval; YouTube collected by agent like system metrics
+[33m1aee42c[m Update .gitignore, enhance README, and improve database connection handling
+[33m0ad197d[m Merge pull request #10 from juliahooper/blaithin
+[33m0c49bea[m Merge branch 'main' into blaithin
+[33m2b48a4c[m Merge pull request #9 from juliahooper/rosie
+[33m492602f[m Merge branch 'main' into rosie
+[33m9d4c2db[m Refactor metrics collection to replace CPU usage with thread count and disk read speed
+[33mbdc5daf[m Add YouTube Vroom Vroom integration and .env support
+[33mddf1b22[m mobile collector
+[33m9e81136[m Merge pull request #8 from juliahooper/julia
+[33m42f898a[m[33m ([m[1;31morigin/julia[m[33m)[m Update read_interval_seconds in config.json from 5 to 30 seconds for improved metric collection frequency.
+[33m2c98be8[m Enhance README and main.py with collector agent functionality
+[33md84810c[m Enhance API with device listing and snapshot filtering
+[33m39b7a17[m Implement upload_snapshot endpoint and validation for JSON DTO
+[33meda614a[m Enhance ORM documentation and implement DTO mapping
+[33m5de2864[m Refactor README and models documentation for clarity and structure
+[33m07a49dc[m Merge pull request #7 from juliahooper/julia
+[33m0af05dc[m Refactor SCHEMA_DESIGN documentation for clarity and conciseness
+[33mfcfa13f[m Update README and SCHEMA_DESIGN documentation for clarity and conciseness
+[33mf5ddb14[m Update README and schema documentation to clarify transaction management and ORM relationships
+[33m5be8f78[m Implement SQLAlchemy logging and enhance ORM documentation
+[33m4aab1a9[m Add TransactionManager for explicit transaction handling in database operations
+[33me14dc3f[m Enhance performance documentation and add new script for index comparison
+[33m035f3d1[m Enhance database indexing and documentation for performance optimization
+[33m156cbd0[m Merge pull request #6 from juliahooper/julia
+[33m4ca128d[m Merge branch 'julia' of https://github.com/juliahooper/VroomVroom-Dashboard into julia
+[33m80ba89d[m Merge branch 'main' into julia
+[33m1c85d1c[m Enhance README and main.py for improved configuration handling and troubleshooting guidance
+[33m2e92d68[m Merge branch 'julia' of https://github.com/juliahooper/VroomVroom-Dashboard into julia
+[33m6aac5cf[m Refactor README, requirements, and database setup for clarity and consistency
+[33me2dd712[m Update requirements and enhance route registration in web app
+[33m3ccffe5[m Refactor snapshots.py to implement business object mapping and enhance documentation
+[33m4b41bb0[m Initialize the database and register Snapshots blueprint in web app
+[33ma977811[m Update README and add WSGI entry point for production deployment
+[33mbb4afd7[m Merge pull request #5 from juliahooper/rosie
+[33m76218a9[m Update Readme for VM
+[33m03d2a0d[m Merge pull request #4 from juliahooper/blaithin
+[33mff46af0[m Enhance documentation and clarify entry points across modules
+[33mef50fb4[m PoC 3.0: web-enabled metrics service with REST and caching
+[33m79cbc8d[m Merge pull request #3 from juliahooper/rosie
+[33md0b76e0[m Poc 2 v1
+[33mfdf5384[m Enhance TCP server and client with length-prefixed protocol
+[33m825cac0[m Add TCP client implementation and update configuration
+[33mece890a[m Add TCP server implementation and update configuration
+[33md419ebe[m Merge pull request #2 from juliahooper/julia
+[33m92a09ce[m Update README with setup instructions and add requirements file
+[33m69ea694[m Remove launcher script and update README for project execution
+[33m7c61638[m Add launcher script for project execution
+[33mc0dc9b3[m Update README and enhance metrics status handling
+[33mef5d252[m Enhance error handling and documentation in main function
+[33m727ce38[m Enhance snapshot serialization and integrity verification
+[33m2a820a7[m Refactor metrics handling and introduce snapshot creation
+[33m10707cd[m Enhance metrics reading and error handling
+[33m6d104c8[m Add logging setup and metrics reading functionality
+[33mbfbf5f1[m Implement initial project structure and setup
+[33mfc339ca[m Initial commit
