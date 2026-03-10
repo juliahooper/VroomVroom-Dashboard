@@ -397,8 +397,7 @@ def orm_list_locations():
                 "cold_water_shock_risk_score": risk,
                 "alert_count": alerts,
             })
-    logger.info("GET /orm/locations – returning %d locations (from SEED_LOCATIONS, metrics from Postgres)", len(result))
-    return _json_response(result, 200)
+    logger.info("GET /orm/locations – returning %d locations (hardcoded SEED_LOCATIONS, metrics from DB)", len(result))
 
 
 # ---------------------------------------------------------------------------

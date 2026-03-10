@@ -115,15 +115,9 @@ export default function App() {
       .then((data) => {
         if (cancelled) return
         const valid = (data || []).filter(hasLocationMetrics)
-        if (valid.length > 0) {
-          setLocationHistoricSnapshots(valid)
-          return
-        }
-        return fetchLatestSnapshot(deviceId).then((latest) => {
-          if (!cancelled && latest && hasLocationMetrics(latest)) {
-            setLocationHistoricSnapshots([latest])
-          } else if (!cancelled) setLocationHistoricSnapshots([])
-        })
+        // Use only historic list (oldest-first from API reverse). Do not fall back to
+        // latest snapshot — that made the chart show the most recent point as "historic".
+        setLocationHistoricSnapshots(valid)
       })
       .catch(() => { if (!cancelled) setLocationHistoricSnapshots([]) })
       .finally(() => { if (!cancelled) setLocationHistoricLoading(false) })
