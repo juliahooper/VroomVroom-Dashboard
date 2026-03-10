@@ -4,6 +4,9 @@ One-time backfill: read all historical mobile data from Firebase into the DB.
 Run once before starting the normal collector. After backfill, run the collector
 normally (cron/scheduler) to ingest only new readings.
 
+Updates data/mobile_sync_state.json so the normal collector skips already-backfilled
+data and only uploads new readings. This prevents duplicates when the collector runs.
+
 Usage:
     python -m src.backfill_mobile
 
@@ -44,6 +47,7 @@ def main() -> int:
     from .mobile_collector import MobileDataCollector, init_firebase
     from .mobile_snapshot_bridge import mobile_to_snapshot
     from .collectors._upload import upload_snapshot
+    from .collectors.mobile_upload import _load_sync_state, _save_sync_state
 
     mobile_config = load_mobile_config(config_path)
     if mobile_config is None or not mobile_config.enabled:
@@ -64,43 +68,61 @@ def main() -> int:
     logger.info("Backfilling %d locations to %s", len(location_ids), api_base)
     total_uploaded = 0
     total_skipped = 0
+    state = _load_sync_state()
+    state_updated = False
 
     for location_id in location_ids:
         try:
-            series = collector.get_time_series(location_id, limit_override=BACKFILL_LIMIT)
-            count_results = []
-            for src in mobile_config.count_sources:
-                cr = collector.get_count(location_id, metric_id=src.metric_id)
-                if cr:
-                    count_results.append(cr)
+            for src in mobile_config.time_series_sources:
+                metric_id = src.metric_id
+                series = collector.get_time_series(
+                    location_id,
+                    metric_id=metric_id,
+                    limit_override=BACKFILL_LIMIT,
+                )
+                count_results = []
+                for count_src in mobile_config.count_sources:
+                    cr = collector.get_count(location_id, metric_id=count_src.metric_id)
+                    if cr:
+                        count_results.append(cr)
 
-            if not series:
-                logger.info("  %s: no time-series data, skipping", location_id)
-                continue
+                if not series:
+                    logger.info("  %s/%s: no time-series data, skipping", location_id, metric_id)
+                    continue
 
-            logger.info("  %s: %d points", location_id, len(series))
-            for i, point in enumerate(series):
-                try:
-                    snapshot = mobile_to_snapshot(location_id, point, count_results)
-                    dto = {
-                        "device_id": snapshot.device_id,
-                        "timestamp_utc": snapshot.timestamp_utc.isoformat(),
-                        "metrics": [
-                            {"name": m.name, "value": m.value, "unit": m.unit, "status": m.status}
-                            for m in snapshot.metrics
-                        ],
-                    }
-                    upload_snapshot(api_base, dto)
-                    total_uploaded += 1
-                    if (i + 1) % 100 == 0:
-                        logger.info("    uploaded %d/%d", i + 1, len(series))
-                except Exception as e:
-                    logger.warning("    skipped point %d: %s", i, e)
-                    total_skipped += 1
+                logger.info("  %s/%s: %d points", location_id, metric_id, len(series))
+                for i, point in enumerate(series):
+                    try:
+                        snapshot = mobile_to_snapshot(location_id, point, count_results)
+                        dto = {
+                            "device_id": snapshot.device_id,
+                            "timestamp_utc": snapshot.timestamp_utc.isoformat(),
+                            "metrics": [
+                                {"name": m.name, "value": m.value, "unit": m.unit, "status": m.status}
+                                for m in snapshot.metrics
+                            ],
+                        }
+                        upload_snapshot(api_base, dto)
+                        total_uploaded += 1
+                        if (i + 1) % 100 == 0:
+                            logger.info("    uploaded %d/%d", i + 1, len(series))
+                    except Exception as e:
+                        logger.warning("    skipped point %d: %s", i, e)
+                        total_skipped += 1
+
+                latest_point = series[-1]
+                if location_id not in state:
+                    state[location_id] = {}
+                state[location_id][metric_id] = latest_point.timestamp_millis
+                state_updated = True
 
         except Exception as e:
             logger.exception("Backfill failed for location %s: %s", location_id, e)
             return 1
+
+    if state_updated:
+        _save_sync_state(state)
+        logger.info("Updated mobile_sync_state.json – normal collector will only ingest new data.")
 
     logger.info("Backfill complete. Uploaded %d snapshots, skipped %d.", total_uploaded, total_skipped)
     return 0

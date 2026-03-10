@@ -122,7 +122,37 @@ def upload_snapshot():
         return _json_response({"error": str(e)}, 400)
 
     metrics_in = dto.get("metrics") or []
-    if not metrics_in and "mobile:" in str(dto.get("device_id", "")):
+    device_id_str = str(dto.get("device_id", ""))
+
+    # Validate metrics match device type (prevents wrong-metrics bug, e.g. total_streams on mobile)
+    MOBILE_METRICS = {"Cold Water Shock Risk", "Water Temp", "Alert Count"}
+    YOUTUBE_METRICS = {"total_streams", "Like Count"}
+    if device_id_str.startswith("mobile:"):
+        metric_names = {m.get("name") for m in metrics_in if m.get("name")}
+        disallowed = metric_names - MOBILE_METRICS
+        if disallowed:
+            logger.warning(
+                "POST /orm/upload_snapshot – rejecting mobile device %s: disallowed metrics %s (allowed: %s)",
+                device_id_str, disallowed, MOBILE_METRICS,
+            )
+            return _json_response(
+                {"error": f"Mobile devices only allow metrics: {sorted(MOBILE_METRICS)}. Got: {sorted(disallowed)}"},
+                400,
+            )
+    elif device_id_str == "youtube-vroom-vroom":
+        metric_names = {m.get("name") for m in metrics_in if m.get("name")}
+        disallowed = metric_names - YOUTUBE_METRICS
+        if disallowed:
+            logger.warning(
+                "POST /orm/upload_snapshot – rejecting YouTube device: disallowed metrics %s (allowed: %s)",
+                disallowed, YOUTUBE_METRICS,
+            )
+            return _json_response(
+                {"error": f"YouTube device only allows metrics: {sorted(YOUTUBE_METRICS)}. Got: {sorted(disallowed)}"},
+                400,
+            )
+
+    if not metrics_in and "mobile:" in device_id_str:
         logger.warning(
             "POST /orm/upload_snapshot – mobile device %s has 0 metrics in payload. "
             "Check Firestore field names match config value_fields (risk_score, water_temp).",
