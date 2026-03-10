@@ -94,9 +94,9 @@ export default function App() {
     return () => { cancelled = true }
   }, [view])
 
-  // Historic: fetch location snapshots for metrics panel chart (last week, higher limit for mobile)
+  // Historic: fetch location snapshots for metrics panel chart
+  // Mobile: omit since filter so we get ALL available data (mobile data may be sparse or older than 7 days)
   // Mobile: filter to snapshots with valid location metrics (Cold Water Shock Risk, Water Temp)
-  // - DB may have stale/wrong metrics (e.g. total_streams) from misconfigured uploads
   const LOCATION_METRIC_NAMES = [METRIC_COLD_WATER_SHOCK, METRIC_WATER_TEMP]
   const hasLocationMetrics = (snapshot) =>
     (snapshot?.metrics ?? []).some((m) => LOCATION_METRIC_NAMES.includes(m?.name))
@@ -109,7 +109,9 @@ export default function App() {
     const deviceId = deviceIdForLocation(selectedLocation.id)
     let cancelled = false
     setLocationHistoricLoading(true)
-    fetchHistoricSnapshots(deviceId, 500, getHistoricSinceIso())
+    // Mobile: no since filter – get all snapshots (up to 500). PC/YouTube use 7-day filter.
+    const since = deviceId?.startsWith('mobile:') ? undefined : getHistoricSinceIso()
+    fetchHistoricSnapshots(deviceId, 500, since)
       .then((data) => {
         if (cancelled) return
         const valid = (data || []).filter(hasLocationMetrics)
