@@ -32,6 +32,8 @@ export default function BoatDashboardPanel({ view, onDanger }) {
   const [selectedMetricKey, setSelectedMetricKey] = useState(PC_METRIC_KEYS[0]?.key ?? null)
   const dangerReportedRef = useRef(false)
   const thresholdsRef = useRef(DEFAULT_THRESHOLDS)
+  const onDangerRef = useRef(onDanger)
+  onDangerRef.current = onDanger
 
   useEffect(() => {
     let cancelled = false
@@ -50,9 +52,9 @@ export default function BoatDashboardPanel({ view, onDanger }) {
               return limit != null && typeof m?.value === 'number' && m.value >= limit
             })
             const hasDanger = hasDangerFromStatus || hasDangerFromValues
-            if (hasDanger && !dangerReportedRef.current && onDanger) {
+            if (hasDanger && !dangerReportedRef.current && onDangerRef.current) {
               dangerReportedRef.current = true
-              onDanger(data)
+              onDangerRef.current(data)
             }
             if (!hasDanger) dangerReportedRef.current = false
           }
@@ -67,7 +69,6 @@ export default function BoatDashboardPanel({ view, onDanger }) {
         .finally(() => { if (!cancelled) setLoading(false) })
     }
     if (view === 'live') {
-      dangerReportedRef.current = false
       setLoading(true)
       fetchThresholds()
         .then((t) => {
@@ -89,7 +90,7 @@ export default function BoatDashboardPanel({ view, onDanger }) {
       loadHistoric()
       return () => { cancelled = true }
     }
-  }, [view, onDanger])
+  }, [view])
 
   if (view === 'historic') {
     return (

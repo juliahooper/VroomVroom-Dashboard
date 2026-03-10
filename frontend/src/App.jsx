@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import { fetchLatestSnapshot, fetchHistoricSnapshots, getMetric, sendCommand } from './api'
+import { fetchLatestSnapshot, fetchHistoricSnapshots, getHistoricSinceIso, getMetric, sendCommand } from './api'
 import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS, VROOM_VROOM_VIDEO_URL } from './constants'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
@@ -94,7 +94,7 @@ export default function App() {
     return () => { cancelled = true }
   }, [view])
 
-  // Historic: fetch location snapshots for metrics panel chart
+  // Historic: fetch location snapshots for metrics panel chart (last week, higher limit for mobile)
   useEffect(() => {
     if (view !== 'historic' || !selectedLocation?.id) {
       setLocationHistoricSnapshots([])
@@ -103,7 +103,7 @@ export default function App() {
     const deviceId = deviceIdForLocation(selectedLocation.id)
     let cancelled = false
     setLocationHistoricLoading(true)
-    fetchHistoricSnapshots(deviceId, 100)
+    fetchHistoricSnapshots(deviceId, 500, getHistoricSinceIso())
       .then((data) => { if (!cancelled) setLocationHistoricSnapshots(data) })
       .catch(() => { if (!cancelled) setLocationHistoricSnapshots([]) })
       .finally(() => { if (!cancelled) setLocationHistoricLoading(false) })
@@ -196,6 +196,7 @@ export default function App() {
                       emptyMessage={`No historic data for ${selectedLocation.name} yet.`}
                       chartId="mobile"
                       chartHeight={320}
+                      domain="auto"
                     />
                   </>
                 )}

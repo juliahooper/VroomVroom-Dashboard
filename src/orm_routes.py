@@ -165,7 +165,7 @@ def orm_list_snapshots():
     expand_metrics = request.args.get("expand") == "metrics"
     since_iso = request.args.get("since")  # ISO 8601, e.g. 7 days ago
     try:
-        limit = min(int(request.args.get("limit", 50)), 200)
+        limit = min(int(request.args.get("limit", 50)), 1000)
     except ValueError:
         limit = 50
 

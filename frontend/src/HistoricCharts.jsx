@@ -45,6 +45,14 @@ export default function HistoricCharts({
     const spansMultipleDays = first && last && (new Date(last) - new Date(first)) > 24 * 60 * 60 * 1000
     const labelFn = spansMultipleDays ? formatDateTime : formatTime
 
+    // Map API metric names to chart keys (handles "Water Temp" vs "Water Temp (°C)" etc.)
+    const nameToKey = {
+      'Water Temp': 'Water Temp',
+      'Water Temp (°C)': 'Water Temp',
+      'Cold Water Shock Risk': 'Cold Water Shock Risk',
+      'Cold Water Shock Risk (%)': 'Cold Water Shock Risk',
+    }
+
     return snapshots.map((s) => {
       const point = {
         time: formatTime(s.timestamp_utc),
@@ -53,11 +61,16 @@ export default function HistoricCharts({
         full: s.timestamp_utc,
       }
       for (const m of s.metrics || []) {
-        point[m.name] = typeof m.value === 'number' ? m.value : null
+        const val = typeof m.value === 'number' ? m.value : null
+        point[m.name] = val
+        const chartKey = nameToKey[m.name]
+        if (chartKey && metricKeys.some((mk) => mk.key === chartKey)) {
+          point[chartKey] = val
+        }
       }
       return point
     })
-  }, [snapshots])
+  }, [snapshots, metricKeys])
 
   const activeKey = selectedMetricKey ?? (metricKeys[0]?.key ?? null)
   const activeMetric = metricKeys.find((m) => m.key === activeKey) ?? metricKeys[0]
