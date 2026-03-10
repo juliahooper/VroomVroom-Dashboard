@@ -36,7 +36,6 @@ export async function fetchHistoricSnapshots(device = 'pc-01', limit = 100, sinc
   if (!res.ok) throw new Error(`Historic snapshots: ${res.status}`)
   const data = await res.json()
   const result = Array.isArray(data) ? data.reverse() : [] // chronological for charts
-  // Debug: log historic fetch – mobile vs PC/YouTube (PC/YouTube work; mobile location charts don't)
   const isMobile = device?.startsWith('mobile:')
   if (result.length > 0) {
     const first = result[0]
@@ -48,6 +47,8 @@ export async function fetchHistoricSnapshots(device = 'pc-01', limit = 100, sinc
       metricNames: first.metrics?.map((m) => m.name) ?? [],
       metricsSample: first.metrics?.slice(0, 4) ?? [],
     })
+  } else if (isMobile) {
+    console.log(`[HistoricCharts API] fetchHistoricSnapshots MOBILE returned 0 snapshots for device=${device}. Run backfill to load Firebase data: python -m src.backfill_mobile`)
   }
   return result
 }

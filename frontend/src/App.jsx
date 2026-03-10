@@ -96,8 +96,8 @@ export default function App() {
 
   // Historic: fetch location snapshots for metrics panel chart
   // Mobile: omit since filter so we get ALL available data (mobile data may be sparse or older than 7 days)
-  // Mobile: filter to snapshots with valid location metrics (Cold Water Shock Risk, Water Temp)
-  const LOCATION_METRIC_NAMES = [METRIC_COLD_WATER_SHOCK, METRIC_WATER_TEMP]
+  // Include any snapshot that has at least one location metric (chart can show Cold Water Shock, Water Temp, Alert Count).
+  const LOCATION_METRIC_NAMES = [METRIC_COLD_WATER_SHOCK, METRIC_WATER_TEMP, METRIC_ALERT_COUNT]
   const hasLocationMetrics = (snapshot) =>
     (snapshot?.metrics ?? []).some((m) => LOCATION_METRIC_NAMES.includes(m?.name))
 
@@ -115,6 +115,10 @@ export default function App() {
       .then((data) => {
         if (cancelled) return
         const valid = (data || []).filter(hasLocationMetrics)
+        if ((data || []).length > 0 && valid.length === 0) {
+          const first = (data || [])[0]
+          console.warn('[Historic] Snapshots returned but none had location metrics. Sample metric names:', first?.metrics?.map((m) => m?.name) ?? [])
+        }
         // Use only historic list (oldest-first from API reverse). Do not fall back to
         // latest snapshot — that made the chart show the most recent point as "historic".
         setLocationHistoricSnapshots(valid)
