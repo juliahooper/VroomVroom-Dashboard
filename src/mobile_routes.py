@@ -157,12 +157,22 @@ def snapshots_history():
     end_millis = int(now_utc.timestamp() * 1000)
     since_millis = end_millis - (7 * 24 * 60 * 60 * 1000)  # 7 days ago
     try:
-        points = coll.get_time_series(
-            location_id,
-            limit_override=limit,
-            since_timestamp_millis=since_millis,
-            end_timestamp_millis=end_millis,
-        )
+        points = []
+        try:
+            points = coll.get_time_series(
+                location_id,
+                limit_override=limit,
+                since_timestamp_millis=since_millis,
+                end_timestamp_millis=end_millis,
+            )
+        except Exception as e:
+            # e.g. Firestore composite index required for (location_id, timestamp)
+            logger.warning("GET /mobile/snapshots/history: 7-day query failed (%s), falling back to all-time.", e)
+        # If no data in last 7 days (or query failed), show latest available
+        if not points:
+            points = coll.get_time_series(location_id, limit_override=limit)
+            if end_millis > 0:
+                points = [p for p in points if p.timestamp_millis <= end_millis]
         count_results = []
         cfg = current_app.config.get(MOBILE_CONFIG_KEY)
         if cfg:

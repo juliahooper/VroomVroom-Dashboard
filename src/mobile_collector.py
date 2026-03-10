@@ -139,31 +139,57 @@ class MobileDataCollector:
             logger.warning("Unknown collection_key '%s' for time_series.", source.collection_key)
             return []
         limit = limit_override if limit_override is not None else source.limit
+        ref = db.collection(coll_name)
+
+        def _doc_to_point(doc, ts_field, value_fields, end_millis):
+            data = doc.to_dict() or {}
+            ts = data.get(ts_field)
+            millis = _timestamp_to_millis(ts) if ts else 0
+            if end_millis is not None and end_millis > 0 and millis > end_millis:
+                return None
+            values = {}
+            for f in value_fields:
+                v = data.get(f)
+                if v is not None:
+                    try:
+                        values[f] = float(v)
+                    except (TypeError, ValueError):
+                        pass
+            return TimeSeriesPoint(timestamp_millis=millis, values=values)
+
+        # Try full query (with optional since, order_by) first
         try:
-            ref = db.collection(coll_name)
             query = ref.where(source.location_field, "==", location_id)
             if since_timestamp_millis is not None and since_timestamp_millis > 0:
                 since_dt = datetime.fromtimestamp(since_timestamp_millis / 1000.0, tz=timezone.utc)
                 query = query.where(source.timestamp_field, ">", since_dt)
-            if end_timestamp_millis is not None and end_timestamp_millis > 0:
-                end_dt = datetime.fromtimestamp(end_timestamp_millis / 1000.0, tz=timezone.utc)
-                query = query.where(source.timestamp_field, "<=", end_dt)
             query = query.order_by(source.timestamp_field).limit(limit)
             docs = query.stream()
             out = []
             for doc in docs:
-                data = doc.to_dict() or {}
-                ts = data.get(source.timestamp_field)
-                millis = _timestamp_to_millis(ts) if ts else 0
-                values = {}
-                for f in source.value_fields:
-                    v = data.get(f)
-                    if v is not None:
-                        try:
-                            values[f] = float(v)
-                        except (TypeError, ValueError):
-                            pass
-                out.append(TimeSeriesPoint(timestamp_millis=millis, values=values))
+                pt = _doc_to_point(doc, source.timestamp_field, source.value_fields, end_timestamp_millis)
+                if pt is not None:
+                    out.append(pt)
+            if out:
+                return out
+        except Exception as e:
+            logger.warning("get_time_series ordered query failed (%s), trying simple query.", e)
+
+        # Fallback: no order_by, no since (no composite index needed). Sort in memory.
+        try:
+            simple_query = ref.where(source.location_field, "==", location_id).limit(limit)
+            docs = simple_query.stream()
+            out = []
+            for doc in docs:
+                pt = _doc_to_point(doc, source.timestamp_field, source.value_fields, end_timestamp_millis)
+                if pt is not None:
+                    out.append(pt)
+            out.sort(key=lambda p: p.timestamp_millis)
+            if not out:
+                logger.info(
+                    "get_time_series returned 0 docs: collection=%r, location_id=%r, timestamp_field=%r",
+                    coll_name, location_id, source.timestamp_field,
+                )
             return out
         except Exception as e:
             logger.exception("Firestore get_time_series failed: %s", e)
