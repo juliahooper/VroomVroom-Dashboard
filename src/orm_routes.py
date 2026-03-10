@@ -361,8 +361,9 @@ def _metrics_from_snapshot(snapshot) -> dict[str, float]:
 def orm_list_locations():
     """
     GET /orm/locations — list locations for map markers.
-    Locations come from SEED_LOCATIONS (local). Metrics (cold_water_shock_risk_score, alert_count)
-    come from the latest snapshot for device_id = mobile:{loc_id} in Postgres.
+    Locations are hardcoded from SEED_LOCATIONS (map positions). Metrics
+    (cold_water_shock_risk_score, alert_count) come from the latest snapshot
+    for device_id = mobile:{loc_id} in the DB.
     """
     from .db_seed import SEED_LOCATIONS
 
@@ -397,7 +398,7 @@ def orm_list_locations():
                 "cold_water_shock_risk_score": risk,
                 "alert_count": alerts,
             })
-    logger.info("GET /orm/locations – returning %d locations (from SEED_LOCATIONS, metrics from Postgres)", len(result))
+    logger.info("GET /orm/locations – returning %d locations (hardcoded SEED_LOCATIONS, metrics from DB)", len(result))
     return _json_response(result, 200)
 
 
