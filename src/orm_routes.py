@@ -194,6 +194,20 @@ def orm_list_snapshots():
             if expand_metrics
             else [snapshot_to_summary_dto(s) for s in snapshots]
         )
+        # Debug: log mobile device snapshot structure to compare with working PC/YouTube
+        if device_filter and "mobile:" in str(device_filter) and result and expand_metrics:
+            first = result[0]
+            metrics_preview = [
+                {"name": m.get("name"), "value": m.get("value")}
+                for m in (first.get("metrics") or [])[:5]
+            ]
+            logger.info(
+                "GET /orm/snapshots – mobile device %r: %d snapshots, first has %d metrics: %s",
+                device_filter,
+                len(result),
+                len(first.get("metrics") or []),
+                metrics_preview,
+            )
 
     logger.info(
         "GET /orm/snapshots – returning %d snapshots (filter=%r, since=%r, expand=%s)",

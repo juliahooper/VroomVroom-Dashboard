@@ -31,10 +31,25 @@ export function getHistoricSinceIso() {
 export async function fetchHistoricSnapshots(device = 'pc-01', limit = 100, since = getHistoricSinceIso()) {
   const params = new URLSearchParams({ device, limit: String(limit), expand: 'metrics' })
   if (since) params.set('since', since)
-  const res = await fetch(`${API_BASE}/orm/snapshots?${params}`)
+  const url = `${API_BASE}/orm/snapshots?${params}`
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`Historic snapshots: ${res.status}`)
   const data = await res.json()
-  return Array.isArray(data) ? data.reverse() : [] // chronological for charts
+  const result = Array.isArray(data) ? data.reverse() : [] // chronological for charts
+  // Debug: log historic fetch – mobile vs PC/YouTube (PC/YouTube work; mobile location charts don't)
+  const isMobile = device?.startsWith('mobile:')
+  if (result.length > 0) {
+    const first = result[0]
+    console.log(`[HistoricCharts API] fetchHistoricSnapshots ${isMobile ? 'MOBILE' : 'PC/YouTube'}`, {
+      device,
+      since: since?.slice(0, 19),
+      count: result.length,
+      metricsCount: first.metrics?.length ?? 0,
+      metricNames: first.metrics?.map((m) => m.name) ?? [],
+      metricsSample: first.metrics?.slice(0, 4) ?? [],
+    })
+  }
+  return result
 }
 
 /**

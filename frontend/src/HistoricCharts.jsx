@@ -53,7 +53,7 @@ export default function HistoricCharts({
       'Cold Water Shock Risk (%)': 'Cold Water Shock Risk',
     }
 
-    return snapshots.map((s) => {
+    const points = snapshots.map((s) => {
       const point = {
         time: formatTime(s.timestamp_utc),
         timeLabel: formatDateTime(s.timestamp_utc),
@@ -77,6 +77,27 @@ export default function HistoricCharts({
       }
       return point
     })
+    // Debug: log mobile chart data to compare with working PC/YouTube
+    if (chartId === 'mobile' && points.length > 0) {
+      const expectedKeys = metricKeys.map((mk) => mk.key)
+      const firstPointKeys = Object.keys(points[0]).filter((k) => !['time', 'timeLabel', 'label', 'full'].includes(k))
+      const hasExpectedValues = expectedKeys.some((k) => points.some((p) => p[k] != null))
+      console.log('[HistoricCharts] chartData built', {
+        chartId,
+        snapshotCount: snapshots.length,
+        pointCount: points.length,
+        metricKeys: expectedKeys,
+        firstSnapshotMetrics: snapshots[0]?.metrics?.map((m) => ({ name: m.name, value: m.value })) ?? [],
+        firstPointKeys,
+        firstPointSample: points[0],
+        hasValuesForExpectedKeys: hasExpectedValues,
+        valuesPerKey: expectedKeys.reduce((acc, k) => {
+          acc[k] = points.filter((p) => p[k] != null).length
+          return acc
+        }, {}),
+      })
+    }
+    return points
   }, [snapshots, metricKeys])
 
   const activeKey = selectedMetricKey ?? (metricKeys[0]?.key ?? null)

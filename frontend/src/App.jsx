@@ -110,10 +110,20 @@ export default function App() {
         // Fallback: if historic returns empty but live has data, use latest snapshot (same source as live)
         if (data.length === 0) {
           return fetchLatestSnapshot(deviceId).then((latest) => {
-            if (!cancelled && latest) setLocationHistoricSnapshots([latest])
-            else if (!cancelled) setLocationHistoricSnapshots([])
+            if (!cancelled && latest) {
+              console.log('[HistoricCharts App] location historic empty, using latest fallback', {
+                deviceId,
+                latestMetrics: latest?.metrics?.map((m) => ({ name: m.name, value: m.value })) ?? [],
+              })
+              setLocationHistoricSnapshots([latest])
+            } else if (!cancelled) setLocationHistoricSnapshots([])
           })
         }
+        console.log('[HistoricCharts App] location historic data received', {
+          deviceId,
+          count: data.length,
+          firstMetrics: data[0]?.metrics?.map((m) => ({ name: m.name, value: m.value })) ?? [],
+        })
         setLocationHistoricSnapshots(data)
       })
       .catch(() => { if (!cancelled) setLocationHistoricSnapshots([]) })
