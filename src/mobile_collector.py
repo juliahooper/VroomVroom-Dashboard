@@ -112,6 +112,31 @@ class MobileDataCollector:
             logger.exception("Firestore list_locations failed: %s", e)
             raise
 
+    def get_time_series_diagnostic(self, location_id: str) -> dict | None:
+        """When no docs returned, call this to get collection name, sample doc keys, location field value for logging."""
+        db = self._client()
+        if db is None or not self._config or not self._config.time_series_sources:
+            return None
+        source = self._config.time_series_sources[0]
+        coll_name = self._config.collection_name(source.collection_key)
+        if not coll_name:
+            return None
+        try:
+            ref = db.collection(coll_name)
+            sample = list(ref.limit(1).stream())
+            if not sample:
+                return {"collection": coll_name, "empty": True}
+            data = sample[0].to_dict() or {}
+            return {
+                "collection": coll_name,
+                "query_location_id": location_id,
+                "location_field": source.location_field,
+                "sample_doc_keys": list(data.keys()),
+                "sample_location_value": data.get(source.location_field),
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
     def get_time_series(
         self,
         location_id: str,
@@ -186,10 +211,22 @@ class MobileDataCollector:
                     out.append(pt)
             out.sort(key=lambda p: p.timestamp_millis)
             if not out:
-                logger.info(
-                    "get_time_series returned 0 docs: collection=%r, location_id=%r, timestamp_field=%r",
-                    coll_name, location_id, source.timestamp_field,
-                )
+                # Diagnostic: fetch one doc with no filter to see actual field names
+                try:
+                    sample = list(ref.limit(1).stream())
+                    if sample:
+                        data = sample[0].to_dict() or {}
+                        logger.warning(
+                            "get_time_series 0 docs: collection=%r, query location_id=%r; sample doc keys=%r, sample %r=%r",
+                            coll_name, location_id, list(data.keys()), source.location_field, data.get(source.location_field),
+                        )
+                    else:
+                        logger.warning(
+                            "get_time_series 0 docs: collection=%r is empty (no documents at all)",
+                            coll_name,
+                        )
+                except Exception as diag_e:
+                    logger.warning("get_time_series diagnostic failed: %s", diag_e)
             return out
         except Exception as e:
             logger.exception("Firestore get_time_series failed: %s", e)

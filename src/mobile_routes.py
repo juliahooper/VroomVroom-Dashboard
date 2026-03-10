@@ -189,6 +189,9 @@ def snapshots_history():
             }
             for s in snapshots
         ]
+        if not payload:
+            diag = coll.get_time_series_diagnostic(location_id)
+            logger.warning("GET /mobile/snapshots/history empty for location_id=%r: %s", location_id, diag)
         return _json_response(payload, 200)
     except Exception as e:
         logger.exception("GET /mobile/snapshots/history failed: %s", e)
