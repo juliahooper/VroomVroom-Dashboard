@@ -118,12 +118,14 @@ class MobileDataCollector:
         metric_id: str | None = None,
         limit_override: int | None = None,
         since_timestamp_millis: int | None = None,
+        end_timestamp_millis: int | None = None,
     ) -> list[TimeSeriesPoint]:
         """
         Fetch time-series points for a location. If metric_id is given, use that
         time_series_sources entry; otherwise use the first. Value fields come from config.
         limit_override: if set, use instead of source.limit (e.g. for backfill).
         since_timestamp_millis: if set, only return points with timestamp > this (incremental sync).
+        end_timestamp_millis: if set, only return points with timestamp <= this (e.g. "current time").
         """
         db = self._client()
         if db is None or not self._config:
@@ -143,6 +145,9 @@ class MobileDataCollector:
             if since_timestamp_millis is not None and since_timestamp_millis > 0:
                 since_dt = datetime.fromtimestamp(since_timestamp_millis / 1000.0, tz=timezone.utc)
                 query = query.where(source.timestamp_field, ">", since_dt)
+            if end_timestamp_millis is not None and end_timestamp_millis > 0:
+                end_dt = datetime.fromtimestamp(end_timestamp_millis / 1000.0, tz=timezone.utc)
+                query = query.where(source.timestamp_field, "<=", end_dt)
             query = query.order_by(source.timestamp_field).limit(limit)
             docs = query.stream()
             out = []

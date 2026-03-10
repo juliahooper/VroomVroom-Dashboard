@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
+from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, request
 
@@ -144,8 +145,7 @@ def snapshots_history():
     """
     GET /mobile/snapshots/history?locationId=loc_lough_dan&limit=500
     Returns historic mobile snapshots from Firebase (same shape as /orm/snapshots)
-    so the frontend can use one format for historic charts. Data comes from
-    Firestore only (no PostgreSQL).
+    for the last 7 days up to current time. Data from Firestore only (no PostgreSQL).
     """
     coll = _collector()
     if coll is None:
@@ -153,8 +153,16 @@ def snapshots_history():
     location_id = request.args.get("locationId", DEFAULT_LOCATION_ID)
     limit = request.args.get("limit", type=int) or 500
     limit = max(1, min(limit, 1000))
+    now_utc = datetime.now(timezone.utc)
+    end_millis = int(now_utc.timestamp() * 1000)
+    since_millis = end_millis - (7 * 24 * 60 * 60 * 1000)  # 7 days ago
     try:
-        points = coll.get_time_series(location_id, limit_override=limit)
+        points = coll.get_time_series(
+            location_id,
+            limit_override=limit,
+            since_timestamp_millis=since_millis,
+            end_timestamp_millis=end_millis,
+        )
         count_results = []
         cfg = current_app.config.get(MOBILE_CONFIG_KEY)
         if cfg:
