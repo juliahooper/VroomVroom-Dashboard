@@ -420,8 +420,8 @@ def orm_commands_pending():
             .order_by(DeviceCommand.id.asc())
         )
         commands = session.scalars(stmt).all()
+        result = {"commands": [{"id": c.id, "command": c.command} for c in commands]}
 
-    result = {"commands": [{"id": c.id, "command": c.command} for c in commands]}
     if commands:
         logger.info("GET /orm/commands/pending – device=%r returning %d commands", device_filter, len(commands))
     return _json_response(result, 200)

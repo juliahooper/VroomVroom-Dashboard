@@ -45,7 +45,7 @@ export default function HistoricCharts({
     const spansMultipleDays = first && last && (new Date(last) - new Date(first)) > 24 * 60 * 60 * 1000
     const labelFn = spansMultipleDays ? formatDateTime : formatTime
 
-    // Map API metric names to chart keys (handles "Water Temp" vs "Water Temp (°C)" etc.)
+    // Map API metric names to chart keys (handles "Water Temp (°C)" vs "Water Temp" etc.)
     const nameToKey = {
       'Water Temp': 'Water Temp',
       'Water Temp (°C)': 'Water Temp',
@@ -61,11 +61,18 @@ export default function HistoricCharts({
         full: s.timestamp_utc,
       }
       for (const m of s.metrics || []) {
-        const val = typeof m.value === 'number' ? m.value : null
-        point[m.name] = val
+        const rawVal = m.value
+        const val =
+          typeof rawVal === 'number' && !Number.isNaN(rawVal)
+            ? rawVal
+            : typeof rawVal === 'string'
+              ? parseFloat(rawVal)
+              : null
+        const numVal = val != null && !Number.isNaN(val) ? val : null
+        point[m.name] = numVal
         const chartKey = nameToKey[m.name]
         if (chartKey && metricKeys.some((mk) => mk.key === chartKey)) {
-          point[chartKey] = val
+          point[chartKey] = numVal
         }
       }
       return point
@@ -94,11 +101,27 @@ export default function HistoricCharts({
   const gradientId = 'grad-' + chartId + '-' + (activeMetric?.key ?? '').replace(/\s/g, '')
   const useBarChart = activeMetric?.chartType === 'bar'
   const color = activeMetric?.color ?? '#0a4d7a'
-  const margin = { top: 8, right: 8, left: 16, bottom: 0 }
+  const margin = { top: 8, right: 8, left: 16, bottom: 24 }
   const minChartWidth = Math.max(400, chartData.length * 12)
   const gridProps = { strokeDasharray: '3 3', stroke: 'rgba(10,77,122,0.15)' }
   const axisProps = { tick: { fontSize: 10 }, stroke: 'rgba(10,77,122,0.6)' }
-  const yDomain = domain === 'auto' ? ['auto', 'auto'] : undefined
+  // Compute Y domain for consistent axis display (fixes empty axis labels)
+  const values = chartData.map((d) => Number(d[activeKey])).filter((v) => !Number.isNaN(v) && v != null)
+  const dataMin = values.length ? Math.min(...values) : 0
+  const dataMax = values.length ? Math.max(...values) : 0
+  const yDomain =
+    domain === 'auto' && useBarChart
+      ? [0, Math.max(dataMax, 1)]
+      : domain === 'auto' && values.length > 0
+        ? (() => {
+            const lo = dataMin === dataMax ? Math.max(0, dataMin - 1) : dataMin
+            const hi = dataMin === dataMax ? dataMax + 1 : dataMax + 0.5
+            return [lo, hi]
+          })()
+        : domain === 'auto'
+          ? [0, 1]
+          : undefined
+  const yAxisTickFormatter = (v) => (typeof v === 'number' && !Number.isNaN(v) ? String(v) : '')
   const tooltipProps = {
     contentStyle: { background: 'rgba(255,255,255,0.95)', borderRadius: 8, border: '1px solid rgba(10,77,122,0.2)' },
     labelFormatter: (v) => v,
@@ -130,7 +153,7 @@ export default function HistoricCharts({
                 <BarChart data={chartData} margin={margin} barCategoryGap="4%">
                   <CartesianGrid {...gridProps} />
                   <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" />
-                  <YAxis {...axisProps} width={60} domain={yDomain} />
+                  <YAxis {...axisProps} width={60} domain={yDomain} tickFormatter={yAxisTickFormatter} tickCount={6} />
                   <Tooltip {...tooltipProps} />
               <Bar
                 dataKey={activeKey}
@@ -150,7 +173,7 @@ export default function HistoricCharts({
               </defs>
               <CartesianGrid {...gridProps} />
               <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" />
-              <YAxis {...axisProps} width={60} domain={yDomain} />
+              <YAxis {...axisProps} width={60} domain={yDomain} tickFormatter={yAxisTickFormatter} tickCount={6} />
               <Tooltip {...tooltipProps} />
               <Area
                 type="monotone"
@@ -159,6 +182,7 @@ export default function HistoricCharts({
                 strokeWidth={2}
                 fill={'url(#' + gradientId + ')'}
                 name={activeMetric?.name ?? activeKey}
+                connectNulls
                 isAnimationActive
                 animationDuration={400}
               />

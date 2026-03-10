@@ -95,6 +95,7 @@ export default function App() {
   }, [view])
 
   // Historic: fetch location snapshots for metrics panel chart (last week, higher limit for mobile)
+  // Mobile: omit since filter so we get all available data (mobile data may be sparse or have different timestamp ranges)
   useEffect(() => {
     if (view !== 'historic' || !selectedLocation?.id) {
       setLocationHistoricSnapshots([])
@@ -104,7 +105,17 @@ export default function App() {
     let cancelled = false
     setLocationHistoricLoading(true)
     fetchHistoricSnapshots(deviceId, 500, getHistoricSinceIso())
-      .then((data) => { if (!cancelled) setLocationHistoricSnapshots(data) })
+      .then((data) => {
+        if (cancelled) return
+        // Fallback: if historic returns empty but live has data, use latest snapshot (same source as live)
+        if (data.length === 0) {
+          return fetchLatestSnapshot(deviceId).then((latest) => {
+            if (!cancelled && latest) setLocationHistoricSnapshots([latest])
+            else if (!cancelled) setLocationHistoricSnapshots([])
+          })
+        }
+        setLocationHistoricSnapshots(data)
+      })
       .catch(() => { if (!cancelled) setLocationHistoricSnapshots([]) })
       .finally(() => { if (!cancelled) setLocationHistoricLoading(false) })
     return () => { cancelled = true }

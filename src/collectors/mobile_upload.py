@@ -78,7 +78,8 @@ def _ensure_locations_in_db(
             "device_id": device_id,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "metrics": [
-                {"name": "total_streams", "value": 0.0, "unit": "count", "status": "normal"}
+                {"name": "Cold Water Shock Risk", "value": 0.0, "unit": "%", "status": "normal"},
+                {"name": "Water Temp", "value": 0.0, "unit": "°C", "status": "normal"},
             ],
         }
         try:
