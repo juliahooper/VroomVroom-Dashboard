@@ -58,12 +58,19 @@ def main() -> int:
         return 1
 
     collector = MobileDataCollector(mobile_config)
-    locations = collector.list_locations()
-    if not locations:
-        logger.warning("No locations from Firestore; using default.")
-        location_ids = ["loc_lough_dan"]
+    # Use same location IDs as the map (SEED_LOCATIONS) so historic data appears for every map marker.
+    # Firestore may use different doc IDs; we query by these ids (location_id field in time-series docs).
+    from .db_seed import SEED_LOCATIONS
+    location_ids = [loc_id for loc_id, _name, _county, _lat, _lng in SEED_LOCATIONS]
+    firestore_locations = collector.list_locations()
+    if firestore_locations:
+        firestore_ids = {loc.id for loc in firestore_locations}
+        for loc in firestore_locations:
+            if loc.id not in location_ids:
+                location_ids.append(loc.id)
+        logger.info("Backfilling map locations %s + Firestore extras (if any).", location_ids[: len(SEED_LOCATIONS)])
     else:
-        location_ids = [loc.id for loc in locations]
+        logger.warning("Firestore list_locations returned none; backfilling map locations only: %s", location_ids)
 
     logger.info("Backfilling %d locations to %s", len(location_ids), api_base)
     total_uploaded = 0
@@ -71,12 +78,23 @@ def main() -> int:
     state = _load_sync_state()
     state_updated = False
 
+    # Optional: map map location_id -> Firestore query id (if Firebase uses different ids, e.g. lough_dan vs loc_lough_dan)
+    _map_env = os.environ.get("VROOMVROOM_LOCATION_ID_MAP")
+    location_id_map = {}
+    if _map_env:
+        try:
+            import json
+            location_id_map = json.loads(_map_env)
+        except Exception as e:
+            logger.warning("Invalid VROOMVROOM_LOCATION_ID_MAP, ignoring: %s", e)
+
     for location_id in location_ids:
         try:
+            query_id = location_id_map.get(location_id, location_id)
             for src in mobile_config.time_series_sources:
                 metric_id = src.metric_id
                 series = collector.get_time_series(
-                    location_id,
+                    query_id,
                     metric_id=metric_id,
                     limit_override=BACKFILL_LIMIT,
                 )
