@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import { fetchLatestSnapshot, fetchHistoricSnapshots, getHistoricSinceIso, getMetric, sendCommand } from './api'
+import { fetchLatestSnapshot, fetchHistoricSnapshots, getMetric, sendCommand } from './api'
 import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS, METRIC_WATER_TEMP, VROOM_VROOM_VIDEO_URL } from './constants'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
@@ -94,13 +94,7 @@ export default function App() {
     return () => { cancelled = true }
   }, [view])
 
-  // Historic: fetch location snapshots for metrics panel chart
-  // Mobile: omit since filter so we get ALL available data (mobile data may be sparse or older than 7 days)
-  // Include any snapshot that has at least one location metric (chart can show Cold Water Shock, Water Temp, Alert Count).
-  const LOCATION_METRIC_NAMES = [METRIC_COLD_WATER_SHOCK, METRIC_WATER_TEMP, METRIC_ALERT_COUNT]
-  const hasLocationMetrics = (snapshot) =>
-    (snapshot?.metrics ?? []).some((m) => LOCATION_METRIC_NAMES.includes(m?.name))
-
+  // Historic: fetch location snapshots for metrics panel chart (matches working commit: no filter, limit 100)
   useEffect(() => {
     if (view !== 'historic' || !selectedLocation?.id) {
       setLocationHistoricSnapshots([])
@@ -109,20 +103,8 @@ export default function App() {
     const deviceId = deviceIdForLocation(selectedLocation.id)
     let cancelled = false
     setLocationHistoricLoading(true)
-    // Mobile: no since filter – get all snapshots (up to 500). PC/YouTube use 7-day filter.
-    const since = deviceId?.startsWith('mobile:') ? undefined : getHistoricSinceIso()
-    fetchHistoricSnapshots(deviceId, 500, since)
-      .then((data) => {
-        if (cancelled) return
-        const valid = (data || []).filter(hasLocationMetrics)
-        if ((data || []).length > 0 && valid.length === 0) {
-          const first = (data || [])[0]
-          console.warn('[Historic] Snapshots returned but none had location metrics. Sample metric names:', first?.metrics?.map((m) => m?.name) ?? [])
-        }
-        // Use only historic list (oldest-first from API reverse). Do not fall back to
-        // latest snapshot — that made the chart show the most recent point as "historic".
-        setLocationHistoricSnapshots(valid)
-      })
+    fetchHistoricSnapshots(deviceId, 100)
+      .then((data) => { if (!cancelled) setLocationHistoricSnapshots(data || []) })
       .catch(() => { if (!cancelled) setLocationHistoricSnapshots([]) })
       .finally(() => { if (!cancelled) setLocationHistoricLoading(false) })
     return () => { cancelled = true }
