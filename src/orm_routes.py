@@ -398,6 +398,7 @@ def orm_list_locations():
                 "alert_count": alerts,
             })
     logger.info("GET /orm/locations – returning %d locations (hardcoded SEED_LOCATIONS, metrics from DB)", len(result))
+    return _json_response(result, 200)
 
 
 # ---------------------------------------------------------------------------
