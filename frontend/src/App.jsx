@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import { fetchLatestSnapshot, fetchHistoricSnapshots, getHistoricSinceIso, getMetric, sendCommand } from './api'
-import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS, VROOM_VROOM_VIDEO_URL } from './constants'
+import { deviceIdForLocation, DEVICE_PC, DEVICE_YOUTUBE, METRIC_ALERT_COUNT, METRIC_COLD_WATER_SHOCK, METRIC_LIKE_COUNT, METRIC_TOTAL_STREAMS, METRIC_WATER_TEMP, VROOM_VROOM_VIDEO_URL } from './constants'
 import AlertCountBadge from './AlertCountBadge'
 import BoatDashboardPanel from './BoatDashboardPanel'
 import DangerRecoveryModal from './DangerRecoveryModal'
@@ -95,7 +95,12 @@ export default function App() {
   }, [view])
 
   // Historic: fetch location snapshots for metrics panel chart (last week, higher limit for mobile)
-  // Mobile: omit since filter so we get all available data (mobile data may be sparse or have different timestamp ranges)
+  // Mobile: filter to snapshots with valid location metrics (Cold Water Shock Risk, Water Temp)
+  // - DB may have stale/wrong metrics (e.g. total_streams) from misconfigured uploads
+  const LOCATION_METRIC_NAMES = [METRIC_COLD_WATER_SHOCK, METRIC_WATER_TEMP]
+  const hasLocationMetrics = (snapshot) =>
+    (snapshot?.metrics ?? []).some((m) => LOCATION_METRIC_NAMES.includes(m?.name))
+
   useEffect(() => {
     if (view !== 'historic' || !selectedLocation?.id) {
       setLocationHistoricSnapshots([])
@@ -107,24 +112,16 @@ export default function App() {
     fetchHistoricSnapshots(deviceId, 500, getHistoricSinceIso())
       .then((data) => {
         if (cancelled) return
-        // Fallback: if historic returns empty but live has data, use latest snapshot (same source as live)
-        if (data.length === 0) {
-          return fetchLatestSnapshot(deviceId).then((latest) => {
-            if (!cancelled && latest) {
-              console.log('[HistoricCharts App] location historic empty, using latest fallback', {
-                deviceId,
-                latestMetrics: latest?.metrics?.map((m) => ({ name: m.name, value: m.value })) ?? [],
-              })
-              setLocationHistoricSnapshots([latest])
-            } else if (!cancelled) setLocationHistoricSnapshots([])
-          })
+        const valid = (data || []).filter(hasLocationMetrics)
+        if (valid.length > 0) {
+          setLocationHistoricSnapshots(valid)
+          return
         }
-        console.log('[HistoricCharts App] location historic data received', {
-          deviceId,
-          count: data.length,
-          firstMetrics: data[0]?.metrics?.map((m) => ({ name: m.name, value: m.value })) ?? [],
+        return fetchLatestSnapshot(deviceId).then((latest) => {
+          if (!cancelled && latest && hasLocationMetrics(latest)) {
+            setLocationHistoricSnapshots([latest])
+          } else if (!cancelled) setLocationHistoricSnapshots([])
         })
-        setLocationHistoricSnapshots(data)
       })
       .catch(() => { if (!cancelled) setLocationHistoricSnapshots([]) })
       .finally(() => { if (!cancelled) setLocationHistoricLoading(false) })
